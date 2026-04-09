@@ -1,0 +1,102 @@
+package repository
+
+import (
+	"context"
+
+	"github.com/google/uuid"
+	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
+)
+
+func (db *DB) GetAllDormitories(ctx context.Context) ([]model.Dormitory, error) {
+	query := `SELECT id, name, address, total_rooms, available_rooms, price_per_month, description, created_at FROM dormitories ORDER BY created_at DESC`
+	rows, err := db.Pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var dorms []model.Dormitory
+	for rows.Next() {
+		var d model.Dormitory
+		if err := rows.Scan(&d.ID, &d.Name, &d.Address, &d.TotalRooms, &d.AvailableRooms, &d.PricePerMonth, &d.Description, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		dorms = append(dorms, d)
+	}
+	return dorms, nil
+}
+
+func (db *DB) GetDormitoryByID(ctx context.Context, id uuid.UUID) (*model.Dormitory, error) {
+	d := &model.Dormitory{}
+	query := `SELECT id, name, address, total_rooms, available_rooms, price_per_month, description, created_at FROM dormitories WHERE id = $1`
+	err := db.Pool.QueryRow(ctx, query, id).Scan(
+		&d.ID, &d.Name, &d.Address, &d.TotalRooms, &d.AvailableRooms, &d.PricePerMonth, &d.Description, &d.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return d, nil
+}
+
+func (db *DB) CreateDormitoryApplication(ctx context.Context, app *model.DormitoryApplication) error {
+	query := `
+		INSERT INTO dormitory_applications (id, user_id, dormitory_id, status, message, created_at)
+		VALUES ($1, $2, $3, $4, $5, NOW())
+		RETURNING created_at`
+	return db.Pool.QueryRow(ctx, query,
+		app.ID, app.UserID, app.DormitoryID, app.Status, app.Message,
+	).Scan(&app.CreatedAt)
+}
+
+func (db *DB) GetUserDormitoryApplications(ctx context.Context, userID uuid.UUID) ([]model.DormitoryApplication, error) {
+	query := `SELECT id, user_id, dormitory_id, status, message, created_at FROM dormitory_applications WHERE user_id = $1 ORDER BY created_at DESC`
+	rows, err := db.Pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var apps []model.DormitoryApplication
+	for rows.Next() {
+		var a model.DormitoryApplication
+		if err := rows.Scan(&a.ID, &a.UserID, &a.DormitoryID, &a.Status, &a.Message, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		apps = append(apps, a)
+	}
+	return apps, nil
+}
+
+func (db *DB) GetAllDormitoryApplications(ctx context.Context) ([]model.DormitoryApplication, error) {
+	query := `SELECT id, user_id, dormitory_id, status, message, created_at FROM dormitory_applications ORDER BY created_at DESC`
+	rows, err := db.Pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var apps []model.DormitoryApplication
+	for rows.Next() {
+		var a model.DormitoryApplication
+		if err := rows.Scan(&a.ID, &a.UserID, &a.DormitoryID, &a.Status, &a.Message, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		apps = append(apps, a)
+	}
+	return apps, nil
+}
+
+func (db *DB) UpdateDormitoryApplicationStatus(ctx context.Context, id uuid.UUID, status string) (*model.DormitoryApplication, error) {
+	app := &model.DormitoryApplication{}
+	query := `
+		UPDATE dormitory_applications SET status = $2
+		WHERE id = $1
+		RETURNING id, user_id, dormitory_id, status, message, created_at`
+	err := db.Pool.QueryRow(ctx, query, id, status).Scan(
+		&app.ID, &app.UserID, &app.DormitoryID, &app.Status, &app.Message, &app.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return app, nil
+}
