@@ -17,6 +17,46 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
+// UserResponse is the public representation of a user. It intentionally
+// omits PasswordHash and any other sensitive fields so callers cannot
+// accidentally leak credentials in API responses.
+type UserResponse struct {
+	ID         uuid.UUID `json:"id"`
+	Name       string    `json:"name"`
+	Email      string    `json:"email"`
+	Country    string    `json:"country"`
+	University string    `json:"university"`
+	Role       string    `json:"role"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// SanitizeUser strips sensitive fields from a User and returns the
+// client-safe UserResponse. Always use this when returning user data
+// from an API handler.
+func SanitizeUser(u *User) UserResponse {
+	if u == nil {
+		return UserResponse{}
+	}
+	return UserResponse{
+		ID:         u.ID,
+		Name:       u.Name,
+		Email:      u.Email,
+		Country:    u.Country,
+		University: u.University,
+		Role:       u.Role,
+		CreatedAt:  u.CreatedAt,
+	}
+}
+
+// SanitizeUsers converts a slice of users to their sanitized form.
+func SanitizeUsers(users []User) []UserResponse {
+	out := make([]UserResponse, len(users))
+	for i := range users {
+		out[i] = SanitizeUser(&users[i])
+	}
+	return out
+}
+
 type Dormitory struct {
 	ID             uuid.UUID `json:"id"`
 	Name           string    `json:"name"`
@@ -113,8 +153,8 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	Token string       `json:"token"`
+	User  UserResponse `json:"user"`
 }
 
 type DormitoryApplyRequest struct {

@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    color: #222222;
+    background-color: #ffffff;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: #1a1a2e;
+    font-weight: 700;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center bg-primary px-7 py-3 text-white font-semibold rounded transition-colors duration-200 hover:bg-primary-dark;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center border-2 border-primary px-7 py-3 text-primary font-semibold rounded transition-colors duration-200 hover:bg-primary hover:text-white;
+  }
+
+  .card {
+    @apply bg-white rounded-md shadow-card border-t-4 border-primary transition-shadow duration-200 hover:shadow-card-hover;
+  }
+
+  .input-field {
+    @apply block w-full rounded border border-gray-300 px-4 py-3 text-text-dark placeholder:text-gray-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors;
+  }
+
+  .section-title {
+    @apply text-3xl md:text-4xl font-bold text-navy mb-3;
+  }
+
+  .section-subtitle {
+    @apply text-muted max-w-2xl mx-auto mb-10;
+  }
+
+  .badge {
+    @apply inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .badge-red {
+    @apply badge bg-primary/10 text-primary;
+  }
+
+  .badge-green {
+    @apply badge bg-green-100 text-green-700;
+  }
+
+  .badge-yellow {
+    @apply badge bg-yellow-100 text-yellow-700;
+  }
+
+  .badge-gray {
+    @apply badge bg-gray-100 text-gray-700;
+  }
+}
+
+/* Hero gradient background with overlay */
+.hero-bg {
+  background: linear-gradient(
+      135deg,
+      rgba(26, 26, 46, 0.92) 0%,
+      rgba(26, 26, 46, 0.75) 60%,
+      rgba(192, 57, 43, 0.65) 100%
+    ),
+    radial-gradient(
+      ellipse at center,
+      #2c3e50 0%,
+      #1a1a2e 60%,
+      #0f0f1e 100%
+    );
+  background-size: cover;
+  background-position: center;
+}
+
+/* Auth page background */
+.auth-bg {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}

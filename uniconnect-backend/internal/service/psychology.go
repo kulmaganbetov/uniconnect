@@ -9,11 +9,11 @@ import (
 )
 
 type PsychologyService struct {
-	db *repository.DB
+	repo repository.PsychologyRepository
 }
 
-func NewPsychologyService(db *repository.DB) *PsychologyService {
-	return &PsychologyService{db: db}
+func NewPsychologyService(repo repository.PsychologyRepository) *PsychologyService {
+	return &PsychologyService{repo: repo}
 }
 
 func (s *PsychologyService) CreateRequest(ctx context.Context, userID uuid.UUID, req model.PsychologyRequestCreate) (*model.PsychologyRequest, error) {
@@ -26,12 +26,12 @@ func (s *PsychologyService) CreateRequest(ctx context.Context, userID uuid.UUID,
 		Status:        "pending",
 	}
 
-	if err := s.db.CreatePsychologyRequest(ctx, pr); err != nil {
+	if err := s.repo.CreatePsychologyRequest(ctx, pr); err != nil {
 		return nil, err
 	}
 	return pr, nil
 }
 
 func (s *PsychologyService) GetMyRequests(ctx context.Context, userID uuid.UUID) ([]model.PsychologyRequest, error) {
-	return s.db.GetUserPsychologyRequests(ctx, userID)
+	return s.repo.GetUserPsychologyRequests(ctx, userID)
 }

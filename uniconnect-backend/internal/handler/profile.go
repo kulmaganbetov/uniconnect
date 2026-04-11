@@ -2,27 +2,32 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/middleware"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
-	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/repository"
+	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/service"
 )
 
 type ProfileHandler struct {
-	db *repository.DB
+	svc *service.ProfileService
 }
 
-func NewProfileHandler(db *repository.DB) *ProfileHandler {
-	return &ProfileHandler{db: db}
+func NewProfileHandler(svc *service.ProfileService) *ProfileHandler {
+	return &ProfileHandler{svc: svc}
 }
 
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r.Context())
 
-	user, err := h.db.GetUserByID(r.Context(), userID)
+	user, err := h.svc.GetProfile(r.Context(), userID)
 	if err != nil {
-		writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "user not found"})
+		if errors.Is(err, service.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "user not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "internal server error"})
 		return
 	}
 
@@ -38,8 +43,17 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.db.UpdateUser(r.Context(), userID, req.Name, req.Country, req.University)
+	if err := validateUpdateProfileRequest(req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	user, err := h.svc.UpdateProfile(r.Context(), userID, req)
 	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "user not found"})
+			return
+		}
 		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to update profile"})
 		return
 	}
@@ -48,15 +62,15 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 type AdminHandler struct {
-	db *repository.DB
+	svc *service.AdminService
 }
 
-func NewAdminHandler(db *repository.DB) *AdminHandler {
-	return &AdminHandler{db: db}
+func NewAdminHandler(svc *service.AdminService) *AdminHandler {
+	return &AdminHandler{svc: svc}
 }
 
 func (h *AdminHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := h.db.GetAllUsers(r.Context())
+	users, err := h.svc.GetAllUsers(r.Context())
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to fetch users"})
 		return
