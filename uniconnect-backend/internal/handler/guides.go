@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -44,4 +45,52 @@ func (h *GuideHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: guide})
+}
+
+// Admin / teacher operations
+
+func (h *GuideHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req model.GuideUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	g, err := h.svc.Create(r.Context(), req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to create guide"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, model.APIResponse{Success: true, Data: g})
+}
+
+func (h *GuideHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid guide id"})
+		return
+	}
+	var req model.GuideUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	g, err := h.svc.Update(r.Context(), id, req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to update guide"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: g})
+}
+
+func (h *GuideHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid guide id"})
+		return
+	}
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to delete guide"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "deleted"}})
 }

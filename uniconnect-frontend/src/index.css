@@ -70,6 +70,30 @@
   .badge-gray {
     @apply badge bg-gray-100 text-gray-700;
   }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm text-text-dark font-semibold rounded hover:bg-gray-100 transition-colors;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center bg-white border border-primary px-4 py-2 text-sm text-primary font-semibold rounded hover:bg-primary hover:text-white transition-colors;
+  }
+
+  .skeleton {
+    @apply bg-gray-200 animate-pulse rounded;
+  }
+
+  .tab-button {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-colors;
+  }
+
+  .tab-button-active {
+    @apply bg-primary text-white;
+  }
+
+  .tab-button-inactive {
+    @apply text-text-dark hover:bg-gray-100;
+  }
 }
 
 /* Hero gradient background with overlay */

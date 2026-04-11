@@ -75,3 +75,60 @@ func (h *JobHandler) MyApplications(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: apps})
 }
+
+// Manager / admin operations
+
+func (h *JobHandler) AllApplications(w http.ResponseWriter, r *http.Request) {
+	apps, err := h.svc.GetAllApplications(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to fetch applications"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: apps})
+}
+
+func (h *JobHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req model.JobUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	j, err := h.svc.Create(r.Context(), req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to create job"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, model.APIResponse{Success: true, Data: j})
+}
+
+func (h *JobHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid job id"})
+		return
+	}
+	var req model.JobUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	j, err := h.svc.Update(r.Context(), id, req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to update job"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: j})
+}
+
+func (h *JobHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid job id"})
+		return
+	}
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to delete job"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "deleted"}})
+}

@@ -82,9 +82,40 @@ func AdminOnly(next http.Handler) http.Handler {
 	})
 }
 
+// RequireRoles returns middleware that allows the request through only
+// when the authenticated user holds one of the supplied roles. It must
+// be chained after JWTAuth so the role is already in the context.
+func RequireRoles(roles ...string) func(http.Handler) http.Handler {
+	allowed := make(map[string]struct{}, len(roles))
+	for _, r := range roles {
+		allowed[r] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			role, ok := r.Context().Value(UserRoleKey).(string)
+			if !ok {
+				writeError(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			if _, found := allowed[role]; !found {
+				writeError(w, http.StatusForbidden, "insufficient permissions")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func GetUserID(ctx context.Context) uuid.UUID {
 	userID, _ := ctx.Value(UserIDKey).(uuid.UUID)
 	return userID
+}
+
+// GetUserRole returns the role string stored in the request context by
+// JWTAuth, or an empty string if absent.
+func GetUserRole(ctx context.Context) string {
+	role, _ := ctx.Value(UserRoleKey).(string)
+	return role
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {

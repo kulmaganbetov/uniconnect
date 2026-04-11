@@ -23,3 +23,38 @@ func (s *GuideService) GetAll(ctx context.Context, category string) ([]model.Gui
 func (s *GuideService) GetByID(ctx context.Context, id uuid.UUID) (*model.Guide, error) {
 	return s.repo.GetGuideByID(ctx, id)
 }
+
+// Admin/teacher operations
+
+func (s *GuideService) Create(ctx context.Context, req model.GuideUpsertRequest) (*model.Guide, error) {
+	g := &model.Guide{
+		ID:       uuid.New(),
+		Title:    req.Title,
+		Category: req.Category,
+		Content:  req.Content,
+	}
+	if err := s.repo.CreateGuide(ctx, g); err != nil {
+		return nil, ErrInternal
+	}
+	return g, nil
+}
+
+func (s *GuideService) Update(ctx context.Context, id uuid.UUID, req model.GuideUpsertRequest) (*model.Guide, error) {
+	g := &model.Guide{
+		Title:    req.Title,
+		Category: req.Category,
+		Content:  req.Content,
+	}
+	out, err := s.repo.UpdateGuide(ctx, id, g)
+	if err != nil {
+		return nil, ErrInternal
+	}
+	return out, nil
+}
+
+func (s *GuideService) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.DeleteGuide(ctx, id); err != nil {
+		return ErrInternal
+	}
+	return nil
+}

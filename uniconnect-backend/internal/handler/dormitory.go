@@ -86,6 +86,52 @@ func (h *DormitoryHandler) GetAllApplications(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: apps})
 }
 
+func (h *DormitoryHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req model.DormitoryUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	d, err := h.svc.Create(r.Context(), req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to create dormitory"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, model.APIResponse{Success: true, Data: d})
+}
+
+func (h *DormitoryHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid dormitory id"})
+		return
+	}
+	var req model.DormitoryUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	d, err := h.svc.Update(r.Context(), id, req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to update dormitory"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: d})
+}
+
+func (h *DormitoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid dormitory id"})
+		return
+	}
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to delete dormitory"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "deleted"}})
+}
+
 func (h *DormitoryHandler) UpdateApplicationStatus(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)

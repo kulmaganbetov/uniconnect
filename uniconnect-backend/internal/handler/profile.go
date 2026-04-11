@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/middleware"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/service"
@@ -77,4 +79,55 @@ func (h *AdminHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: users})
+}
+
+func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid user id"})
+		return
+	}
+
+	var req model.UpdateUserRoleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+
+	user, err := h.svc.UpdateUserRole(r.Context(), id, req.Role)
+	if err != nil {
+		if errors.Is(err, service.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "user not found"})
+			return
+		}
+		if errors.Is(err, service.ErrInternal) {
+			writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to update role"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: user})
+}
+
+func (h *AdminHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid user id"})
+		return
+	}
+
+	if err := h.svc.DeleteUser(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to delete user"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "deleted"}})
+}
+
+func (h *AdminHandler) ListRoles(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: model.AllRoles})
 }

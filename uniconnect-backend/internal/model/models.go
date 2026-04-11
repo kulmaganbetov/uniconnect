@@ -193,3 +193,105 @@ type APIResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 	Error   string      `json:"error,omitempty"`
 }
+
+// Roles recognised by the application. The string values are persisted
+// in users.role and embedded in JWT claims.
+const (
+	RoleStudent          = "student"
+	RoleAdmin            = "admin"
+	RoleManager          = "manager"
+	RoleTeacher          = "teacher"
+	RoleDormitoryManager = "dormitory_manager"
+)
+
+// AllRoles is the canonical list of every assignable role. The admin
+// UI uses this to populate the role-change dropdown.
+var AllRoles = []string{
+	RoleStudent,
+	RoleAdmin,
+	RoleManager,
+	RoleTeacher,
+	RoleDormitoryManager,
+}
+
+// IsValidRole reports whether the supplied role string matches one of
+// the known roles.
+func IsValidRole(role string) bool {
+	for _, r := range AllRoles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// PageContent is an admin-editable piece of copy keyed by a stable
+// identifier (e.g. "landing_hero").
+type PageContent struct {
+	Key       string    `json:"key"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UpdatePageContentRequest struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+}
+
+type UpdateUserRoleRequest struct {
+	Role string `json:"role"`
+}
+
+// AI consultant types
+
+type ChatMessage struct {
+	Role    string `json:"role"`    // "user" or "assistant"
+	Content string `json:"content"`
+}
+
+type ChatRequest struct {
+	Messages []ChatMessage `json:"messages"`
+}
+
+type ChatResponse struct {
+	Reply string `json:"reply"`
+}
+
+// Admin CRUD payloads
+
+type DormitoryUpsertRequest struct {
+	Name           string  `json:"name"`
+	Address        string  `json:"address"`
+	TotalRooms     int     `json:"total_rooms"`
+	AvailableRooms int     `json:"available_rooms"`
+	PricePerMonth  float64 `json:"price_per_month"`
+	Description    string  `json:"description"`
+}
+
+type JobUpsertRequest struct {
+	Title        string `json:"title"`
+	Company      string `json:"company"`
+	Description  string `json:"description"`
+	Salary       string `json:"salary"`
+	Schedule     string `json:"schedule"`
+	Location     string `json:"location"`
+	Requirements string `json:"requirements"`
+	ContactEmail string `json:"contact_email"`
+}
+
+type MedicalUpsertRequest struct {
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	Address      string `json:"address"`
+	Phone        string `json:"phone"`
+	WorkingHours string `json:"working_hours"`
+	Description  string `json:"description"`
+	IsFree       bool   `json:"is_free"`
+}
+
+type GuideUpsertRequest struct {
+	Title    string `json:"title"`
+	Category string `json:"category"`
+	Content  string `json:"content"`
+}
