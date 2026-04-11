@@ -16,6 +16,7 @@ import (
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/config"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/handler"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/middleware"
+	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/repository"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/service"
 )
@@ -45,6 +46,8 @@ func main() {
 	guideSvc := service.NewGuideService(db)
 	profileSvc := service.NewProfileService(db)
 	adminSvc := service.NewAdminService(db)
+	pageSvc := service.NewPageContentService(db)
+	aiSvc := service.NewAIService(cfg.AnthropicAPIKey, cfg.AnthropicModel)
 
 	// Handlers
 	authH := handler.NewAuthHandler(authSvc)
@@ -55,21 +58,31 @@ func main() {
 	guideH := handler.NewGuideHandler(guideSvc)
 	profileH := handler.NewProfileHandler(profileSvc)
 	adminH := handler.NewAdminHandler(adminSvc)
+	pageH := handler.NewPageContentHandler(pageSvc)
+	aiH := handler.NewAIHandler(aiSvc)
 
 	// Router
 	r := chi.NewRouter()
 
-	// Global middleware
 	r.Use(chimiddleware.Logger)
 	r.Use(chimiddleware.Recoverer)
 	r.Use(chimiddleware.RequestID)
 	r.Use(cors.Handler(middleware.CORSHandler()))
 
-	// JWT middleware
 	jwtAuth := middleware.JWTAuth(cfg.JWTSecret)
 	adminOnly := middleware.AdminOnly
 
-	// Public routes
+	// Role groups for the section logic.
+	// - admin: full access
+	// - dormitory_manager: manages dorms + dorm applications
+	// - manager: manages jobs + job applications
+	// - teacher: manages guides + responds to psychology requests
+	canManageDorms := middleware.RequireRoles(model.RoleAdmin, model.RoleDormitoryManager)
+	canManageJobs := middleware.RequireRoles(model.RoleAdmin, model.RoleManager)
+	canManageGuides := middleware.RequireRoles(model.RoleAdmin, model.RoleTeacher)
+	canManageMedical := middleware.RequireRoles(model.RoleAdmin)
+	canManagePsychology := middleware.RequireRoles(model.RoleAdmin, model.RoleTeacher)
+
 	r.Route("/api", func(r chi.Router) {
 		// Auth
 		r.Route("/auth", func(r chi.Router) {
@@ -114,6 +127,18 @@ func main() {
 			r.Get("/{id}", guideH.GetByID)
 		})
 
+		// Page content (public reads, admin writes)
+		r.Route("/page-content", func(r chi.Router) {
+			r.Get("/", pageH.GetAll)
+			r.Get("/{key}", pageH.Get)
+		})
+
+		// AI consultant
+		r.Route("/ai", func(r chi.Router) {
+			r.Use(jwtAuth)
+			r.Post("/chat", aiH.Chat)
+		})
+
 		// Profile
 		r.Route("/profile", func(r chi.Router) {
 			r.Use(jwtAuth)
@@ -121,17 +146,69 @@ func main() {
 			r.Put("/", profileH.UpdateProfile)
 		})
 
-		// Admin
+		// Admin & staff
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(jwtAuth)
-			r.Use(adminOnly)
-			r.Get("/applications", dormH.GetAllApplications)
-			r.Put("/applications/{id}", dormH.UpdateApplicationStatus)
-			r.Get("/users", adminH.GetAllUsers)
+
+			// User management — admin only
+			r.Group(func(r chi.Router) {
+				r.Use(adminOnly)
+				r.Get("/users", adminH.GetAllUsers)
+				r.Put("/users/{id}/role", adminH.UpdateUserRole)
+				r.Delete("/users/{id}", adminH.DeleteUser)
+				r.Get("/roles", adminH.ListRoles)
+			})
+
+			// Page content — admin only
+			r.Group(func(r chi.Router) {
+				r.Use(adminOnly)
+				r.Put("/page-content/{key}", pageH.Upsert)
+			})
+
+			// Dormitory management — admin or dormitory manager
+			r.Group(func(r chi.Router) {
+				r.Use(canManageDorms)
+				r.Post("/dormitories", dormH.Create)
+				r.Put("/dormitories/{id}", dormH.Update)
+				r.Delete("/dormitories/{id}", dormH.Delete)
+				r.Get("/dormitory-applications", dormH.GetAllApplications)
+				r.Put("/dormitory-applications/{id}", dormH.UpdateApplicationStatus)
+			})
+
+			// Job management — admin or manager
+			r.Group(func(r chi.Router) {
+				r.Use(canManageJobs)
+				r.Post("/jobs", jobH.Create)
+				r.Put("/jobs/{id}", jobH.Update)
+				r.Delete("/jobs/{id}", jobH.Delete)
+				r.Get("/job-applications", jobH.AllApplications)
+			})
+
+			// Guide management — admin or teacher
+			r.Group(func(r chi.Router) {
+				r.Use(canManageGuides)
+				r.Post("/guides", guideH.Create)
+				r.Put("/guides/{id}", guideH.Update)
+				r.Delete("/guides/{id}", guideH.Delete)
+			})
+
+			// Medical service management — admin only
+			r.Group(func(r chi.Router) {
+				r.Use(canManageMedical)
+				r.Post("/medical", medH.Create)
+				r.Put("/medical/{id}", medH.Update)
+				r.Delete("/medical/{id}", medH.Delete)
+			})
+
+			// Psychology counsellor — admin or teacher
+			r.Group(func(r chi.Router) {
+				r.Use(canManagePsychology)
+				r.Get("/psychology-requests", psyH.AllRequests)
+				r.Put("/psychology-requests/{id}", psyH.UpdateStatus)
+			})
 		})
 	})
 
-	// Health check
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok"}`))
@@ -141,11 +218,10 @@ func main() {
 		Addr:         ":" + cfg.Port,
 		Handler:      r,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		WriteTimeout: 90 * time.Second, // generous so AI streaming works
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Graceful shutdown
 	go func() {
 		log.Printf("Server starting on port %s", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

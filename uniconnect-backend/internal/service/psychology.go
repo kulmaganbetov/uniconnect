@@ -35,3 +35,17 @@ func (s *PsychologyService) CreateRequest(ctx context.Context, userID uuid.UUID,
 func (s *PsychologyService) GetMyRequests(ctx context.Context, userID uuid.UUID) ([]model.PsychologyRequest, error) {
 	return s.repo.GetUserPsychologyRequests(ctx, userID)
 }
+
+// Counsellor (teacher/admin) operations
+
+func (s *PsychologyService) GetAllRequests(ctx context.Context) ([]model.PsychologyRequest, error) {
+	return s.repo.GetAllPsychologyRequests(ctx)
+}
+
+func (s *PsychologyService) UpdateStatus(ctx context.Context, id uuid.UUID, status string) (*model.PsychologyRequest, error) {
+	out, err := s.repo.UpdatePsychologyRequestStatus(ctx, id, status)
+	if err != nil {
+		return nil, ErrInternal
+	}
+	return out, nil
+}

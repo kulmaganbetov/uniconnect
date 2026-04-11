@@ -41,3 +41,52 @@ func (s *JobService) Apply(ctx context.Context, userID uuid.UUID, req model.JobA
 func (s *JobService) GetMyApplications(ctx context.Context, userID uuid.UUID) ([]model.JobApplication, error) {
 	return s.repo.GetUserJobApplications(ctx, userID)
 }
+
+// Manager/admin operations
+
+func (s *JobService) GetAllApplications(ctx context.Context) ([]model.JobApplication, error) {
+	return s.repo.GetAllJobApplications(ctx)
+}
+
+func (s *JobService) Create(ctx context.Context, req model.JobUpsertRequest) (*model.Job, error) {
+	j := &model.Job{
+		ID:           uuid.New(),
+		Title:        req.Title,
+		Company:      req.Company,
+		Description:  req.Description,
+		Salary:       req.Salary,
+		Schedule:     req.Schedule,
+		Location:     req.Location,
+		Requirements: req.Requirements,
+		ContactEmail: req.ContactEmail,
+	}
+	if err := s.repo.CreateJob(ctx, j); err != nil {
+		return nil, ErrInternal
+	}
+	return j, nil
+}
+
+func (s *JobService) Update(ctx context.Context, id uuid.UUID, req model.JobUpsertRequest) (*model.Job, error) {
+	j := &model.Job{
+		Title:        req.Title,
+		Company:      req.Company,
+		Description:  req.Description,
+		Salary:       req.Salary,
+		Schedule:     req.Schedule,
+		Location:     req.Location,
+		Requirements: req.Requirements,
+		ContactEmail: req.ContactEmail,
+	}
+	out, err := s.repo.UpdateJob(ctx, id, j)
+	if err != nil {
+		return nil, ErrInternal
+	}
+	return out, nil
+}
+
+func (s *JobService) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.DeleteJob(ctx, id); err != nil {
+		return ErrInternal
+	}
+	return nil
+}

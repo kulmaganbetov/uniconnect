@@ -50,3 +50,44 @@ func (s *DormitoryService) GetAllApplications(ctx context.Context) ([]model.Dorm
 func (s *DormitoryService) UpdateApplicationStatus(ctx context.Context, id uuid.UUID, status string) (*model.DormitoryApplication, error) {
 	return s.repo.UpdateDormitoryApplicationStatus(ctx, id, status)
 }
+
+// Create inserts a new dormitory. Admin/dormitory_manager only.
+func (s *DormitoryService) Create(ctx context.Context, req model.DormitoryUpsertRequest) (*model.Dormitory, error) {
+	d := &model.Dormitory{
+		ID:             uuid.New(),
+		Name:           req.Name,
+		Address:        req.Address,
+		TotalRooms:     req.TotalRooms,
+		AvailableRooms: req.AvailableRooms,
+		PricePerMonth:  req.PricePerMonth,
+		Description:    req.Description,
+	}
+	if err := s.repo.CreateDormitory(ctx, d); err != nil {
+		return nil, ErrInternal
+	}
+	return d, nil
+}
+
+// Update mutates an existing dormitory.
+func (s *DormitoryService) Update(ctx context.Context, id uuid.UUID, req model.DormitoryUpsertRequest) (*model.Dormitory, error) {
+	d := &model.Dormitory{
+		Name:           req.Name,
+		Address:        req.Address,
+		TotalRooms:     req.TotalRooms,
+		AvailableRooms: req.AvailableRooms,
+		PricePerMonth:  req.PricePerMonth,
+		Description:    req.Description,
+	}
+	out, err := s.repo.UpdateDormitory(ctx, id, d)
+	if err != nil {
+		return nil, ErrInternal
+	}
+	return out, nil
+}
+
+func (s *DormitoryService) Delete(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.DeleteDormitory(ctx, id); err != nil {
+		return ErrInternal
+	}
+	return nil
+}

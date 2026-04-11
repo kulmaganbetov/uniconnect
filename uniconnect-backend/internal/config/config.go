@@ -6,9 +6,11 @@ import (
 )
 
 type Config struct {
-	DatabaseURL string
-	JWTSecret   string
-	Port        string
+	DatabaseURL     string
+	JWTSecret       string
+	Port            string
+	AnthropicAPIKey string
+	AnthropicModel  string
 }
 
 func Load() (*Config, error) {
@@ -27,9 +29,20 @@ func Load() (*Config, error) {
 		port = "8080"
 	}
 
+	// ANTHROPIC_API_KEY is optional. If absent the AI consultant
+	// endpoint returns a friendly "AI is not configured" error instead
+	// of crashing the server.
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	model := os.Getenv("ANTHROPIC_MODEL")
+	if model == "" {
+		model = "claude-haiku-4-5"
+	}
+
 	return &Config{
-		DatabaseURL: dbURL,
-		JWTSecret:   jwtSecret,
-		Port:        port,
+		DatabaseURL:     dbURL,
+		JWTSecret:       jwtSecret,
+		Port:            port,
+		AnthropicAPIKey: apiKey,
+		AnthropicModel:  model,
 	}, nil
 }

@@ -75,3 +75,51 @@ func (h *MedicalHandler) MyAppointments(w http.ResponseWriter, r *http.Request) 
 
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: appointments})
 }
+
+// Admin operations
+
+func (h *MedicalHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req model.MedicalUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	s, err := h.svc.Create(r.Context(), req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to create medical service"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, model.APIResponse{Success: true, Data: s})
+}
+
+func (h *MedicalHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid service id"})
+		return
+	}
+	var req model.MedicalUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	s, err := h.svc.Update(r.Context(), id, req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to update medical service"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: s})
+}
+
+func (h *MedicalHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid service id"})
+		return
+	}
+	if err := h.svc.Delete(r.Context(), id); err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to delete medical service"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "deleted"}})
+}

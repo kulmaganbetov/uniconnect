@@ -1,14 +1,23 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { canAccessAdmin, ROLE_LABELS } from "../lib/roles";
 
-const navLinks = [
+interface NavLinkItem {
+  to: string;
+  label: string;
+  auth: boolean;
+  staffOnly?: boolean;
+}
+
+const navLinks: NavLinkItem[] = [
   { to: "/dashboard", label: "Dashboard", auth: true },
   { to: "/dormitory", label: "Dormitory", auth: true },
   { to: "/medical", label: "Medical", auth: true },
   { to: "/jobs", label: "Jobs", auth: true },
   { to: "/psychology", label: "Psychology", auth: true },
   { to: "/guides", label: "Guides", auth: false },
+  { to: "/ai", label: "AI Consultant", auth: true },
 ];
 
 export default function Navbar() {
@@ -22,6 +31,8 @@ export default function Navbar() {
   };
 
   const visibleLinks = navLinks.filter((l) => !l.auth || isAuthenticated);
+  const showAdmin = isAuthenticated && canAccessAdmin(user?.role);
+  const roleLabel = user?.role ? ROLE_LABELS[user.role] || user.role : "";
 
   return (
     <header className="sticky top-0 z-50 bg-navy text-white shadow-lg">
@@ -54,7 +65,7 @@ export default function Navbar() {
                 to={link.to}
                 end
                 className={({ isActive }) =>
-                  `px-4 py-2 text-sm font-medium rounded transition-colors ${
+                  `px-3 py-2 text-sm font-medium rounded transition-colors ${
                     isActive
                       ? "text-primary border-b-2 border-primary"
                       : "text-gray-200 hover:text-primary"
@@ -64,6 +75,20 @@ export default function Navbar() {
                 {link.label}
               </NavLink>
             ))}
+            {showAdmin && (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  `px-3 py-2 text-sm font-semibold rounded transition-colors ${
+                    isActive
+                      ? "bg-primary text-white"
+                      : "text-primary border border-primary/40 hover:bg-primary hover:text-white"
+                  }`
+                }
+              >
+                Admin
+              </NavLink>
+            )}
           </nav>
 
           {/* Desktop auth */}
@@ -72,9 +97,14 @@ export default function Navbar() {
               <>
                 <Link
                   to="/profile"
-                  className="text-sm text-gray-200 hover:text-primary transition-colors"
+                  className="flex items-center gap-2 text-sm text-gray-200 hover:text-primary transition-colors"
                 >
-                  {user?.name || "Profile"}
+                  <span>{user?.name || "Profile"}</span>
+                  {roleLabel && (
+                    <span className="text-[10px] uppercase tracking-wider bg-primary/20 text-primary px-2 py-0.5 rounded font-semibold">
+                      {roleLabel}
+                    </span>
+                  )}
                 </Link>
                 <button
                   onClick={handleLogout}
@@ -134,7 +164,7 @@ export default function Navbar() {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="lg:hidden border-t border-white/10 py-4 space-y-1">
+          <div className="lg:hidden border-t border-white/10 py-4 space-y-1 animate-fade-in">
             {visibleLinks.map((link) => (
               <NavLink
                 key={link.to}
@@ -152,15 +182,35 @@ export default function Navbar() {
                 {link.label}
               </NavLink>
             ))}
+            {showAdmin && (
+              <NavLink
+                to="/admin"
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) =>
+                  `block px-4 py-2 text-sm font-semibold transition-colors ${
+                    isActive
+                      ? "text-white bg-primary"
+                      : "text-primary hover:bg-white/5"
+                  }`
+                }
+              >
+                Admin Panel
+              </NavLink>
+            )}
             <div className="border-t border-white/10 pt-3 mt-3 px-4 space-y-2">
               {isAuthenticated ? (
                 <>
                   <Link
                     to="/profile"
                     onClick={() => setMenuOpen(false)}
-                    className="block text-sm text-gray-200 hover:text-primary transition-colors"
+                    className="flex items-center gap-2 text-sm text-gray-200 hover:text-primary transition-colors"
                   >
-                    {user?.name || "Profile"}
+                    <span>{user?.name || "Profile"}</span>
+                    {roleLabel && (
+                      <span className="text-[10px] uppercase tracking-wider bg-primary/20 text-primary px-2 py-0.5 rounded font-semibold">
+                        {roleLabel}
+                      </span>
+                    )}
                   </Link>
                   <button
                     onClick={() => {

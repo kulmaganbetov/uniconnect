@@ -81,3 +81,8 @@ export async function apiPut<T>(url: string, body?: unknown): Promise<T> {
   const res = await api.put<T>(url, body);
   return res.data;
 }
+
+export async function apiDelete<T>(url: string): Promise<T> {
+  const res = await api.delete<T>(url);
+  return res.data;
+}

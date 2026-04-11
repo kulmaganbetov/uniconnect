@@ -9,7 +9,17 @@ import Jobs from "./pages/Jobs";
 import Psychology from "./pages/Psychology";
 import Guides from "./pages/Guides";
 import Profile from "./pages/Profile";
+import Admin from "./pages/Admin";
+import AIChat from "./pages/AIChat";
 import PrivateRoute from "./components/PrivateRoute";
+import { ROLES } from "./lib/roles";
+
+const STAFF_ROLES = [
+  ROLES.ADMIN,
+  ROLES.MANAGER,
+  ROLES.TEACHER,
+  ROLES.DORMITORY_MANAGER,
+];
 
 export default function App() {
   return (
@@ -66,6 +76,22 @@ export default function App() {
         element={
           <PrivateRoute>
             <Profile />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/ai"
+        element={
+          <PrivateRoute>
+            <AIChat />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <PrivateRoute roles={STAFF_ROLES}>
+            <Admin />
           </PrivateRoute>
         }
       />
