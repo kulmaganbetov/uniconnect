@@ -9,19 +9,19 @@ import (
 )
 
 type DormitoryService struct {
-	db *repository.DB
+	repo repository.DormitoryRepository
 }
 
-func NewDormitoryService(db *repository.DB) *DormitoryService {
-	return &DormitoryService{db: db}
+func NewDormitoryService(repo repository.DormitoryRepository) *DormitoryService {
+	return &DormitoryService{repo: repo}
 }
 
 func (s *DormitoryService) GetAll(ctx context.Context) ([]model.Dormitory, error) {
-	return s.db.GetAllDormitories(ctx)
+	return s.repo.GetAllDormitories(ctx)
 }
 
 func (s *DormitoryService) GetByID(ctx context.Context, id uuid.UUID) (*model.Dormitory, error) {
-	return s.db.GetDormitoryByID(ctx, id)
+	return s.repo.GetDormitoryByID(ctx, id)
 }
 
 func (s *DormitoryService) Apply(ctx context.Context, userID uuid.UUID, req model.DormitoryApplyRequest) (*model.DormitoryApplication, error) {
@@ -33,20 +33,20 @@ func (s *DormitoryService) Apply(ctx context.Context, userID uuid.UUID, req mode
 		Message:     req.Message,
 	}
 
-	if err := s.db.CreateDormitoryApplication(ctx, app); err != nil {
+	if err := s.repo.CreateDormitoryApplication(ctx, app); err != nil {
 		return nil, err
 	}
 	return app, nil
 }
 
 func (s *DormitoryService) GetMyApplications(ctx context.Context, userID uuid.UUID) ([]model.DormitoryApplication, error) {
-	return s.db.GetUserDormitoryApplications(ctx, userID)
+	return s.repo.GetUserDormitoryApplications(ctx, userID)
 }
 
 func (s *DormitoryService) GetAllApplications(ctx context.Context) ([]model.DormitoryApplication, error) {
-	return s.db.GetAllDormitoryApplications(ctx)
+	return s.repo.GetAllDormitoryApplications(ctx)
 }
 
 func (s *DormitoryService) UpdateApplicationStatus(ctx context.Context, id uuid.UUID, status string) (*model.DormitoryApplication, error) {
-	return s.db.UpdateDormitoryApplicationStatus(ctx, id, status)
+	return s.repo.UpdateDormitoryApplicationStatus(ctx, id, status)
 }

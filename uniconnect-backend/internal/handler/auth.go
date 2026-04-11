@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/middleware"
@@ -24,13 +25,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "email and password are required"})
+	if err := validateRegisterRequest(req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
 		return
 	}
 
 	user, err := h.svc.Register(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, service.ErrInternal) {
+			writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "internal server error"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
 		return
 	}
@@ -45,13 +50,17 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "email and password are required"})
+	if err := validateLoginRequest(req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
 		return
 	}
 
 	resp, err := h.svc.Login(r.Context(), req)
 	if err != nil {
+		if errors.Is(err, service.ErrInternal) {
+			writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "internal server error"})
+			return
+		}
 		writeJSON(w, http.StatusUnauthorized, model.APIResponse{Success: false, Error: err.Error()})
 		return
 	}

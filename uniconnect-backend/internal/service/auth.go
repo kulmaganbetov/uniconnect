@@ -7,29 +7,41 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/repository"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ErrInternal is returned when an unexpected repository/database error
+// occurs. Handlers should translate this to HTTP 500.
+var ErrInternal = errors.New("internal server error")
+
 type AuthService struct {
-	db        *repository.DB
+	users     repository.UserRepository
 	jwtSecret string
 }
 
-func NewAuthService(db *repository.DB, jwtSecret string) *AuthService {
-	return &AuthService{db: db, jwtSecret: jwtSecret}
+func NewAuthService(users repository.UserRepository, jwtSecret string) *AuthService {
+	return &AuthService{users: users, jwtSecret: jwtSecret}
 }
 
-func (s *AuthService) Register(ctx context.Context, req model.RegisterRequest) (*model.User, error) {
-	existing, _ := s.db.GetUserByEmail(ctx, req.Email)
+// Register creates a new student account. It returns a sanitized
+// UserResponse (never the raw User with PasswordHash).
+func (s *AuthService) Register(ctx context.Context, req model.RegisterRequest) (model.UserResponse, error) {
+	// Check email availability. Only pgx.ErrNoRows means "available";
+	// any other error is a real failure and must not be silently ignored.
+	existing, err := s.users.GetUserByEmail(ctx, req.Email)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return model.UserResponse{}, ErrInternal
+	}
 	if existing != nil {
-		return nil, errors.New("email already registered")
+		return model.UserResponse{}, errors.New("email already registered")
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, errors.New("failed to hash password")
+		return model.UserResponse{}, ErrInternal
 	}
 
 	user := &model.User{
@@ -42,17 +54,20 @@ func (s *AuthService) Register(ctx context.Context, req model.RegisterRequest) (
 		Role:         "student",
 	}
 
-	if err := s.db.CreateUser(ctx, user); err != nil {
-		return nil, errors.New("failed to create user")
+	if err := s.users.CreateUser(ctx, user); err != nil {
+		return model.UserResponse{}, ErrInternal
 	}
 
-	return user, nil
+	return model.SanitizeUser(user), nil
 }
 
 func (s *AuthService) Login(ctx context.Context, req model.LoginRequest) (*model.LoginResponse, error) {
-	user, err := s.db.GetUserByEmail(ctx, req.Email)
+	user, err := s.users.GetUserByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, errors.New("invalid email or password")
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, errors.New("invalid email or password")
+		}
+		return nil, ErrInternal
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
@@ -61,17 +76,22 @@ func (s *AuthService) Login(ctx context.Context, req model.LoginRequest) (*model
 
 	token, err := s.generateToken(user.ID, user.Role)
 	if err != nil {
-		return nil, errors.New("failed to generate token")
+		return nil, ErrInternal
 	}
 
 	return &model.LoginResponse{
 		Token: token,
-		User:  *user,
+		User:  model.SanitizeUser(user),
 	}, nil
 }
 
-func (s *AuthService) GetMe(ctx context.Context, userID uuid.UUID) (*model.User, error) {
-	return s.db.GetUserByID(ctx, userID)
+// GetMe returns the authenticated user's sanitized profile.
+func (s *AuthService) GetMe(ctx context.Context, userID uuid.UUID) (model.UserResponse, error) {
+	user, err := s.users.GetUserByID(ctx, userID)
+	if err != nil {
+		return model.UserResponse{}, err
+	}
+	return model.SanitizeUser(user), nil
 }
 
 func (s *AuthService) generateToken(userID uuid.UUID, role string) (string, error) {

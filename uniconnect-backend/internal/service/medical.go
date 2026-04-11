@@ -9,19 +9,19 @@ import (
 )
 
 type MedicalService struct {
-	db *repository.DB
+	repo repository.MedicalRepository
 }
 
-func NewMedicalService(db *repository.DB) *MedicalService {
-	return &MedicalService{db: db}
+func NewMedicalService(repo repository.MedicalRepository) *MedicalService {
+	return &MedicalService{repo: repo}
 }
 
 func (s *MedicalService) GetAll(ctx context.Context) ([]model.MedicalService, error) {
-	return s.db.GetAllMedicalServices(ctx)
+	return s.repo.GetAllMedicalServices(ctx)
 }
 
 func (s *MedicalService) GetByID(ctx context.Context, id uuid.UUID) (*model.MedicalService, error) {
-	return s.db.GetMedicalServiceByID(ctx, id)
+	return s.repo.GetMedicalServiceByID(ctx, id)
 }
 
 func (s *MedicalService) BookAppointment(ctx context.Context, userID uuid.UUID, req model.MedicalAppointmentRequest) (*model.MedicalAppointment, error) {
@@ -34,12 +34,12 @@ func (s *MedicalService) BookAppointment(ctx context.Context, userID uuid.UUID, 
 		Status:    "pending",
 	}
 
-	if err := s.db.CreateMedicalAppointment(ctx, app); err != nil {
+	if err := s.repo.CreateMedicalAppointment(ctx, app); err != nil {
 		return nil, err
 	}
 	return app, nil
 }
 
 func (s *MedicalService) GetMyAppointments(ctx context.Context, userID uuid.UUID) ([]model.MedicalAppointment, error) {
-	return s.db.GetUserMedicalAppointments(ctx, userID)
+	return s.repo.GetUserMedicalAppointments(ctx, userID)
 }

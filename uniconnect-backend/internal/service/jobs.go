@@ -9,19 +9,19 @@ import (
 )
 
 type JobService struct {
-	db *repository.DB
+	repo repository.JobRepository
 }
 
-func NewJobService(db *repository.DB) *JobService {
-	return &JobService{db: db}
+func NewJobService(repo repository.JobRepository) *JobService {
+	return &JobService{repo: repo}
 }
 
 func (s *JobService) GetAll(ctx context.Context) ([]model.Job, error) {
-	return s.db.GetAllJobs(ctx)
+	return s.repo.GetAllJobs(ctx)
 }
 
 func (s *JobService) GetByID(ctx context.Context, id uuid.UUID) (*model.Job, error) {
-	return s.db.GetJobByID(ctx, id)
+	return s.repo.GetJobByID(ctx, id)
 }
 
 func (s *JobService) Apply(ctx context.Context, userID uuid.UUID, req model.JobApplyRequest) (*model.JobApplication, error) {
@@ -32,12 +32,12 @@ func (s *JobService) Apply(ctx context.Context, userID uuid.UUID, req model.JobA
 		Status: "pending",
 	}
 
-	if err := s.db.CreateJobApplication(ctx, app); err != nil {
+	if err := s.repo.CreateJobApplication(ctx, app); err != nil {
 		return nil, err
 	}
 	return app, nil
 }
 
 func (s *JobService) GetMyApplications(ctx context.Context, userID uuid.UUID) ([]model.JobApplication, error) {
-	return s.db.GetUserJobApplications(ctx, userID)
+	return s.repo.GetUserJobApplications(ctx, userID)
 }

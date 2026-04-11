@@ -35,13 +35,16 @@ func main() {
 	}
 	defer db.Close()
 
-	// Services
+	// Services — each one receives only the repository interface it
+	// needs, so they can be unit tested with in-memory fakes.
 	authSvc := service.NewAuthService(db, cfg.JWTSecret)
 	dormSvc := service.NewDormitoryService(db)
 	medSvc := service.NewMedicalService(db)
 	jobSvc := service.NewJobService(db)
 	psySvc := service.NewPsychologyService(db)
 	guideSvc := service.NewGuideService(db)
+	profileSvc := service.NewProfileService(db)
+	adminSvc := service.NewAdminService(db)
 
 	// Handlers
 	authH := handler.NewAuthHandler(authSvc)
@@ -50,8 +53,8 @@ func main() {
 	jobH := handler.NewJobHandler(jobSvc)
 	psyH := handler.NewPsychologyHandler(psySvc)
 	guideH := handler.NewGuideHandler(guideSvc)
-	profileH := handler.NewProfileHandler(db)
-	adminH := handler.NewAdminHandler(db)
+	profileH := handler.NewProfileHandler(profileSvc)
+	adminH := handler.NewAdminHandler(adminSvc)
 
 	// Router
 	r := chi.NewRouter()

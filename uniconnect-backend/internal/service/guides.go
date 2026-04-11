@@ -9,17 +9,17 @@ import (
 )
 
 type GuideService struct {
-	db *repository.DB
+	repo repository.GuideRepository
 }
 
-func NewGuideService(db *repository.DB) *GuideService {
-	return &GuideService{db: db}
+func NewGuideService(repo repository.GuideRepository) *GuideService {
+	return &GuideService{repo: repo}
 }
 
 func (s *GuideService) GetAll(ctx context.Context, category string) ([]model.Guide, error) {
-	return s.db.GetAllGuides(ctx, category)
+	return s.repo.GetAllGuides(ctx, category)
 }
 
 func (s *GuideService) GetByID(ctx context.Context, id uuid.UUID) (*model.Guide, error) {
-	return s.db.GetGuideByID(ctx, id)
+	return s.repo.GetGuideByID(ctx, id)
 }

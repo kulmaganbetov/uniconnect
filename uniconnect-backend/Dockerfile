@@ -4,10 +4,9 @@ WORKDIR /app
 
 RUN apk add --no-cache git
 
-COPY go.mod go.sum ./
-RUN go mod download && go mod verify
-
 COPY . .
+
+RUN go mod tidy && go mod download
 
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /server ./cmd/server
 
