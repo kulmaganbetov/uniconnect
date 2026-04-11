@@ -41,5 +41,18 @@ services:
       JWT_SECRET: uniconnect_jwt_secret_change_in_production
       PORT: "8080"
 
+  seed:
+    image: golang:1.25-alpine
+    profiles: ["seed"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    working_dir: /app
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres:5432/uniconnect?sslmode=disable
+    command: ["sh", "-c", "apk add --no-cache git && go run seeds/seed.go"]
+
 volumes:
   pgdata:
