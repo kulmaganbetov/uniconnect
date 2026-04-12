@@ -135,21 +135,21 @@ const testimonials = [
   {
     name: "Amira Hassan",
     country: "Egypt",
-    university: "Al-Farabi KazNU",
+    university: "Narxoz University",
     quote:
       "UniConnect helped me book my dormitory in two days. The medical appointment booking saved me hours at the clinic.",
   },
   {
     name: "Raj Patel",
     country: "India",
-    university: "Nazarbayev University",
+    university: "Narxoz University",
     quote:
       "The job listings are truly student-friendly. I found a part-time English tutoring position that fits my schedule perfectly.",
   },
   {
     name: "Chen Li",
     country: "China",
-    university: "SDU",
+    university: "Narxoz University",
     quote:
       "As a first-year student, the digital guides on banking and public transport made my first month in Almaty so much easier.",
   },
@@ -165,16 +165,16 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
           <div className="max-w-3xl">
             <span className="inline-block bg-primary/20 text-primary-light border border-primary/40 rounded px-4 py-1 text-xs font-bold uppercase tracking-widest mb-6">
-              For Foreign Students in Kazakhstan
+              For Narxoz University Students
             </span>
             <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight mb-6">
               Welcome to{" "}
               <span className="text-primary">UniConnect KZ</span>
             </h1>
             <p className="text-lg md:text-xl text-gray-200 leading-relaxed mb-10 max-w-2xl">
-              A single platform for dormitories, medical services, temporary
-              jobs, psychological support, and digital guides — everything an
-              international student needs to thrive in Kazakhstan.
+              The all-in-one platform for Narxoz University students —
+              dormitories, medical services, part-time jobs, psychological
+              support, and digital guides to help you thrive in Almaty.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link to="/register" className="btn-primary">
@@ -226,8 +226,8 @@ export default function Landing() {
           <div className="text-center mb-14">
             <h2 className="section-title">Everything you need in one place</h2>
             <p className="section-subtitle">
-              From the moment you arrive to the day you graduate — UniConnect
-              KZ gives you the tools, the guidance, and the people.
+              From your first day at Narxoz to graduation — UniConnect gives
+              you the tools, the guidance, and the support you need.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -262,8 +262,8 @@ export default function Landing() {
           <div className="text-center mb-14">
             <h2 className="section-title">What our students say</h2>
             <p className="section-subtitle">
-              Real stories from foreign students building their future in
-              Kazakhstan.
+              Real stories from Narxoz students building their future in
+              Almaty.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

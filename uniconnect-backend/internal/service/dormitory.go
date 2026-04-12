@@ -39,11 +39,11 @@ func (s *DormitoryService) Apply(ctx context.Context, userID uuid.UUID, req mode
 	return app, nil
 }
 
-func (s *DormitoryService) GetMyApplications(ctx context.Context, userID uuid.UUID) ([]model.DormitoryApplication, error) {
+func (s *DormitoryService) GetMyApplications(ctx context.Context, userID uuid.UUID) ([]model.DormApplicationDetail, error) {
 	return s.repo.GetUserDormitoryApplications(ctx, userID)
 }
 
-func (s *DormitoryService) GetAllApplications(ctx context.Context) ([]model.DormitoryApplication, error) {
+func (s *DormitoryService) GetAllApplications(ctx context.Context) ([]model.DormApplicationDetail, error) {
 	return s.repo.GetAllDormitoryApplications(ctx)
 }
 

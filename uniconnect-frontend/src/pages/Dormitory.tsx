@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import LoadingSpinner from "../components/LoadingSpinner";
+import { useToast } from "../components/Toast";
+import { useAuthStore } from "../store/authStore";
 import { apiGet, apiPost } from "../api/axios";
 
 interface Dormitory {
@@ -20,6 +22,7 @@ interface DormApplication {
   id: string;
   user_id: string;
   dormitory_id: string;
+  dormitory_name: string;
   status: string;
   message: string;
   created_at: string;
@@ -27,9 +30,17 @@ interface DormApplication {
 
 export default function Dormitory() {
   const queryClient = useQueryClient();
+  const toast = useToast();
+  const user = useAuthStore((s) => s.user);
   const [selected, setSelected] = useState<Dormitory | null>(null);
-  const [message, setMessage] = useState("");
-  const [successId, setSuccessId] = useState<string | null>(null);
+
+  const [form, setForm] = useState({
+    full_name: "",
+    phone: "",
+    student_id: "",
+    room_type: "double",
+    message: "",
+  });
 
   const dormsQuery = useQuery({
     queryKey: ["dormitories"],
@@ -45,21 +56,35 @@ export default function Dormitory() {
   const applyMutation = useMutation({
     mutationFn: (body: { dormitory_id: string; message: string }) =>
       apiPost<DormApplication>("/api/dormitory/apply", body),
-    onSuccess: (data) => {
-      setSuccessId(data.id);
+    onSuccess: () => {
+      toast.success("Application submitted! We'll notify you once it's reviewed.");
       setSelected(null);
-      setMessage("");
+      setForm({ full_name: "", phone: "", student_id: "", room_type: "double", message: "" });
       queryClient.invalidateQueries({ queryKey: ["my-dorm-applications"] });
-      setTimeout(() => setSuccessId(null), 4000);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Failed to submit application");
     },
   });
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!selected) return;
+
+    // Pack all student info into the message field
+    const fullMessage = [
+      `Full name: ${form.full_name}`,
+      `Phone: ${form.phone}`,
+      `Student ID: ${form.student_id}`,
+      `Preferred room: ${form.room_type === "single" ? "Single" : "Double (shared)"}`,
+      form.message ? `\nAdditional notes:\n${form.message}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
     applyMutation.mutate({
       dormitory_id: selected.id,
-      message: message,
+      message: fullMessage,
     });
   };
 
@@ -67,6 +92,12 @@ export default function Dormitory() {
     if (status === "approved") return <span className="badge-green">Approved</span>;
     if (status === "rejected") return <span className="badge-red">Rejected</span>;
     return <span className="badge-yellow">Pending</span>;
+  };
+
+  // Pre-fill name from profile
+  const openApplyModal = (dorm: Dormitory) => {
+    setSelected(dorm);
+    setForm((f) => ({ ...f, full_name: f.full_name || user?.name || "" }));
   };
 
   return (
@@ -81,24 +112,15 @@ export default function Dormitory() {
               Housing
             </span>
             <h1 className="text-3xl md:text-4xl font-extrabold">
-              Student dormitories
+              Narxoz University Dormitories
             </h1>
             <p className="text-gray-300 mt-2 max-w-2xl">
-              Browse available dormitories across Kazakhstan and submit your
-              application online.
+              Browse available dormitories and submit your application online.
+              Fill in your details and the housing office will review your
+              request.
             </p>
           </div>
         </section>
-
-        {/* Success message */}
-        {successId && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-            <div className="bg-green-50 border border-green-200 text-green-800 rounded px-4 py-3 text-sm">
-              Your application has been submitted successfully. We'll update
-              you soon.
-            </div>
-          </div>
-        )}
 
         {/* Dormitories list */}
         <section className="py-12">
@@ -151,15 +173,16 @@ export default function Dormitory() {
                         <div className="bg-bg-light px-3 py-2 rounded">
                           <div className="text-muted">Per month</div>
                           <div className="font-bold text-primary">
-                            {dorm.price_per_month} KZT
+                            {dorm.price_per_month.toLocaleString()} KZT
                           </div>
                         </div>
                       </div>
                       <button
-                        onClick={() => setSelected(dorm)}
-                        className="btn-primary w-full"
+                        onClick={() => openApplyModal(dorm)}
+                        disabled={dorm.available_rooms === 0}
+                        className="btn-primary w-full disabled:opacity-50"
                       >
-                        Apply now
+                        {dorm.available_rooms === 0 ? "No rooms available" : "Apply now"}
                       </button>
                     </div>
                   </div>
@@ -185,38 +208,35 @@ export default function Dormitory() {
               </div>
             ) : (appsQuery.data || []).length === 0 ? (
               <div className="card p-8 text-center text-muted text-sm">
-                You haven't submitted any applications yet.
+                You haven't submitted any dormitory applications yet.
               </div>
             ) : (
-              <div className="card overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-bg-light">
-                    <tr>
-                      <th className="text-left px-5 py-3 font-semibold text-navy">
-                        Dormitory ID
-                      </th>
-                      <th className="text-left px-5 py-3 font-semibold text-navy">
-                        Submitted
-                      </th>
-                      <th className="text-left px-5 py-3 font-semibold text-navy">
-                        Status
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(appsQuery.data || []).map((app) => (
-                      <tr key={app.id} className="border-t border-gray-100">
-                        <td className="px-5 py-4 font-mono text-xs text-muted">
-                          {app.dormitory_id.slice(0, 8)}...
-                        </td>
-                        <td className="px-5 py-4 text-text-dark">
-                          {new Date(app.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-5 py-4">{statusBadge(app.status)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {(appsQuery.data || []).map((app) => (
+                  <div key={app.id} className="card p-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <h3 className="font-bold text-navy">
+                          {app.dormitory_name || "Dormitory"}
+                        </h3>
+                        <div className="text-xs text-muted mt-1">
+                          Submitted{" "}
+                          {new Date(app.created_at).toLocaleDateString("en-GB", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </div>
+                      </div>
+                      <div>{statusBadge(app.status)}</div>
+                    </div>
+                    {app.message && (
+                      <pre className="text-xs text-muted mt-3 whitespace-pre-wrap font-sans bg-bg-light rounded p-3">
+                        {app.message}
+                      </pre>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -225,58 +245,143 @@ export default function Dormitory() {
         {/* Apply modal */}
         {selected && (
           <div
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4"
+            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 animate-fade-in"
             onClick={() => setSelected(null)}
           >
             <div
-              className="bg-white rounded-md max-w-md w-full shadow-2xl border-t-4 border-primary"
+              className="bg-white rounded-lg max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 md:p-8">
-                <h3 className="text-xl font-bold text-navy mb-1">
-                  Apply for {selected.name}
-                </h3>
-                <p className="text-xs text-muted mb-6">{selected.address}</p>
+              <div className="border-b border-gray-100 px-6 py-4 flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-bold text-navy">
+                    Apply for {selected.name}
+                  </h3>
+                  <p className="text-xs text-muted">{selected.address}</p>
+                </div>
+                <button
+                  onClick={() => setSelected(null)}
+                  className="text-muted hover:text-text-dark text-2xl leading-none"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+                <div className="bg-bg-light rounded p-3 text-xs text-muted">
+                  <strong className="text-text-dark">
+                    {selected.price_per_month.toLocaleString()} KZT/month
+                  </strong>{" "}
+                  · {selected.available_rooms} rooms available out of{" "}
+                  {selected.total_rooms}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-dark mb-1">
+                    Full name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={form.full_name}
+                    onChange={(e) =>
+                      setForm({ ...form, full_name: e.target.value })
+                    }
+                    className="input-field"
+                    placeholder="Your full name"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-text-dark mb-2">
-                      Application message
+                    <label className="block text-xs font-semibold text-text-dark mb-1">
+                      Phone number
                     </label>
-                    <textarea
-                      value={message}
-                      onChange={(e) => setMessage(e.target.value)}
-                      rows={4}
+                    <input
+                      type="tel"
+                      required
+                      value={form.phone}
+                      onChange={(e) =>
+                        setForm({ ...form, phone: e.target.value })
+                      }
                       className="input-field"
-                      placeholder="Tell us why you'd like to live here..."
+                      placeholder="+7 7XX XXX XXXX"
                     />
                   </div>
-
-                  {applyMutation.isError && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3">
-                      {(applyMutation.error as Error)?.message ||
-                        "Failed to submit"}
-                    </div>
-                  )}
-
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelected(null)}
-                      className="btn-secondary flex-1"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={applyMutation.isPending}
-                      className="btn-primary flex-1 disabled:opacity-60"
-                    >
-                      {applyMutation.isPending ? "Submitting..." : "Submit"}
-                    </button>
+                  <div>
+                    <label className="block text-xs font-semibold text-text-dark mb-1">
+                      Student ID
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={form.student_id}
+                      onChange={(e) =>
+                        setForm({ ...form, student_id: e.target.value })
+                      }
+                      className="input-field"
+                      placeholder="e.g. NRX-24001"
+                    />
                   </div>
-                </form>
-              </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-dark mb-1">
+                    Preferred room type
+                  </label>
+                  <select
+                    value={form.room_type}
+                    onChange={(e) =>
+                      setForm({ ...form, room_type: e.target.value })
+                    }
+                    className="input-field"
+                  >
+                    <option value="single">Single room</option>
+                    <option value="double">Double room (shared)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-text-dark mb-1">
+                    Additional notes{" "}
+                    <span className="text-muted font-normal">(optional)</span>
+                  </label>
+                  <textarea
+                    value={form.message}
+                    onChange={(e) =>
+                      setForm({ ...form, message: e.target.value })
+                    }
+                    rows={3}
+                    className="input-field"
+                    placeholder="Any special requirements, move-in date preferences, etc."
+                  />
+                </div>
+
+                {applyMutation.isError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3">
+                    {(applyMutation.error as Error)?.message ||
+                      "Failed to submit"}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelected(null)}
+                    className="btn-secondary flex-1"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={applyMutation.isPending}
+                    className="btn-primary flex-1 disabled:opacity-60"
+                  >
+                    {applyMutation.isPending ? "Submitting..." : "Submit application"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

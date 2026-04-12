@@ -25,7 +25,7 @@ export default function Register() {
     email: "",
     password: "",
     country: "",
-    university: "",
+    university: "Narxoz University",
   });
 
   const registerMutation = useMutation({
@@ -78,7 +78,7 @@ export default function Register() {
                 Create your account
               </h1>
               <p className="text-muted text-sm mb-8">
-                Join UniConnect KZ — the support platform for foreign
+                Join UniConnect — the support platform for Narxoz University
                 students.
               </p>
 
@@ -150,13 +150,9 @@ export default function Register() {
                     </label>
                     <input
                       type="text"
-                      required
-                      value={form.university}
-                      onChange={(e) =>
-                        handleChange("university", e.target.value)
-                      }
-                      className="input-field"
-                      placeholder="Al-Farabi KazNU"
+                      readOnly
+                      value="Narxoz University"
+                      className="input-field bg-bg-light cursor-not-allowed"
                     />
                   </div>
                 </div>

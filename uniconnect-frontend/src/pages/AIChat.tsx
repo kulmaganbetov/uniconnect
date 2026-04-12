@@ -14,10 +14,10 @@ interface ChatResponse {
 }
 
 const SUGGESTIONS = [
-  "How do I open a bank account in Kazakhstan as a foreign student?",
-  "What documents do I need to register at a dormitory?",
-  "Where can I find part-time jobs near my university?",
-  "How does the medical insurance work for international students?",
+  "How do I open a bank account in Almaty as a Narxoz student?",
+  "What documents do I need to apply for a Narxoz dormitory?",
+  "Where can I find part-time jobs near Narxoz campus?",
+  "How does medical insurance work for international students?",
 ];
 
 export default function AIChat() {
@@ -26,7 +26,7 @@ export default function AIChat() {
     {
       role: "assistant",
       content:
-        "Hi! I'm your UniConnect AI consultant. Ask me anything about studying and living in Kazakhstan — visas, dormitories, part-time work, healthcare, transport, banking, language learning, or daily life. How can I help today?",
+        "Hi! I'm your UniConnect AI consultant for Narxoz University. Ask me anything about studying and living in Almaty — visas, dormitories, part-time work, healthcare, transport, banking, or daily life. How can I help today?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -92,8 +92,8 @@ export default function AIChat() {
               Ask anything about studying in Kazakhstan
             </h1>
             <p className="text-gray-300 mt-2 max-w-2xl">
-              Powered by Claude. Get instant, friendly answers about visas,
-              housing, jobs, healthcare, language and daily life.
+              Powered by AI. Get instant, friendly answers about visas,
+              housing, jobs, healthcare, language and daily life at Narxoz.
             </p>
           </div>
         </section>

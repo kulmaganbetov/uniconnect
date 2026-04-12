@@ -48,18 +48,24 @@ func (db *DB) CreateDormitoryApplication(ctx context.Context, app *model.Dormito
 	).Scan(&app.CreatedAt)
 }
 
-func (db *DB) GetUserDormitoryApplications(ctx context.Context, userID uuid.UUID) ([]model.DormitoryApplication, error) {
-	query := `SELECT id, user_id, dormitory_id, status, message, created_at FROM dormitory_applications WHERE user_id = $1 ORDER BY created_at DESC`
+func (db *DB) GetUserDormitoryApplications(ctx context.Context, userID uuid.UUID) ([]model.DormApplicationDetail, error) {
+	query := `
+		SELECT da.id, da.user_id, da.dormitory_id, da.status, da.message, da.created_at,
+		       COALESCE(d.name, '') AS dormitory_name
+		FROM dormitory_applications da
+		LEFT JOIN dormitories d ON d.id = da.dormitory_id
+		WHERE da.user_id = $1
+		ORDER BY da.created_at DESC`
 	rows, err := db.Pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var apps []model.DormitoryApplication
+	var apps []model.DormApplicationDetail
 	for rows.Next() {
-		var a model.DormitoryApplication
-		if err := rows.Scan(&a.ID, &a.UserID, &a.DormitoryID, &a.Status, &a.Message, &a.CreatedAt); err != nil {
+		var a model.DormApplicationDetail
+		if err := rows.Scan(&a.ID, &a.UserID, &a.DormitoryID, &a.Status, &a.Message, &a.CreatedAt, &a.DormitoryName); err != nil {
 			return nil, err
 		}
 		apps = append(apps, a)
@@ -67,18 +73,28 @@ func (db *DB) GetUserDormitoryApplications(ctx context.Context, userID uuid.UUID
 	return apps, nil
 }
 
-func (db *DB) GetAllDormitoryApplications(ctx context.Context) ([]model.DormitoryApplication, error) {
-	query := `SELECT id, user_id, dormitory_id, status, message, created_at FROM dormitory_applications ORDER BY created_at DESC`
+func (db *DB) GetAllDormitoryApplications(ctx context.Context) ([]model.DormApplicationDetail, error) {
+	query := `
+		SELECT da.id, da.user_id, da.dormitory_id, da.status, da.message, da.created_at,
+		       COALESCE(d.name, '') AS dormitory_name,
+		       COALESCE(u.name, '') AS user_name,
+		       COALESCE(u.email, '') AS user_email,
+		       COALESCE(u.country, '') AS user_country
+		FROM dormitory_applications da
+		LEFT JOIN dormitories d ON d.id = da.dormitory_id
+		LEFT JOIN users u ON u.id = da.user_id
+		ORDER BY da.created_at DESC`
 	rows, err := db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var apps []model.DormitoryApplication
+	var apps []model.DormApplicationDetail
 	for rows.Next() {
-		var a model.DormitoryApplication
-		if err := rows.Scan(&a.ID, &a.UserID, &a.DormitoryID, &a.Status, &a.Message, &a.CreatedAt); err != nil {
+		var a model.DormApplicationDetail
+		if err := rows.Scan(&a.ID, &a.UserID, &a.DormitoryID, &a.Status, &a.Message, &a.CreatedAt,
+			&a.DormitoryName, &a.UserName, &a.UserEmail, &a.UserCountry); err != nil {
 			return nil, err
 		}
 		apps = append(apps, a)

@@ -33,8 +33,8 @@ func main() {
 
 	_, err = pool.Exec(ctx, `
 		INSERT INTO users (id, name, email, password_hash, country, university, role) VALUES
-		('a0000000-0000-0000-0000-000000000001', 'Admin Almaty', 'admin@uniconnect.kz', $1, 'Kazakhstan', 'Al-Farabi KazNU', 'admin'),
-		('a0000000-0000-0000-0000-000000000002', 'Admin Astana', 'admin2@uniconnect.kz', $1, 'Kazakhstan', 'Nazarbayev University', 'admin')
+		('a0000000-0000-0000-0000-000000000001', 'Admin Narxoz', 'admin@uniconnect.kz', $1, 'Kazakhstan', 'Narxoz University', 'admin'),
+		('a0000000-0000-0000-0000-000000000002', 'Admin Narxoz 2', 'admin2@uniconnect.kz', $1, 'Kazakhstan', 'Narxoz University', 'admin')
 		ON CONFLICT (email) DO NOTHING
 	`, string(adminPass))
 	if err != nil {
@@ -43,12 +43,12 @@ func main() {
 		fmt.Println("  ✓ Admin users seeded")
 	}
 
-	// Seed dormitories
+	// Seed dormitories (Narxoz campus area)
 	_, err = pool.Exec(ctx, `
 		INSERT INTO dormitories (id, name, address, total_rooms, available_rooms, price_per_month, description) VALUES
-		('d0000000-0000-0000-0000-000000000001', 'KazNU Student House №1', '71 Al-Farabi Ave, Almaty', 200, 45, 25000, 'Modern dormitory near the main campus of Al-Farabi KazNU. Includes Wi-Fi, laundry, and a shared kitchen on each floor.'),
-		('d0000000-0000-0000-0000-000000000002', 'SDU Residence Hall', '1/1 Abylai Khan St, Kaskelen', 150, 30, 35000, 'Comfortable residence hall at Suleyman Demirel University. Single and double rooms available with private bathrooms.'),
-		('d0000000-0000-0000-0000-000000000003', 'KBTU Dormitory', '59 Tole Bi St, Almaty', 180, 20, 30000, 'Located in the city center near KBTU campus. Fully furnished rooms with 24/7 security and study rooms.')
+		('d0000000-0000-0000-0000-000000000001', 'Narxoz Student House №1', '55 Zhandosov St, Almaty', 180, 35, 30000, 'Main campus dormitory at Narxoz University. Modern rooms with Wi-Fi, laundry facilities, shared kitchens on every floor, and 24/7 security. Walking distance to all academic buildings.'),
+		('d0000000-0000-0000-0000-000000000002', 'Narxoz Student House №2', '57 Zhandosov St, Almaty', 120, 20, 35000, 'Newer dormitory block next to the main campus. Single and double rooms available with en-suite bathrooms, study lounges, and a ground-floor cafeteria.'),
+		('d0000000-0000-0000-0000-000000000003', 'Narxoz Partner Residence', '10 Raiymbek Ave, Almaty', 80, 15, 45000, 'Off-campus partner residence with premium amenities. Private rooms, gym, co-working space, and shuttle service to Narxoz campus.')
 		ON CONFLICT DO NOTHING
 	`)
 	if err != nil {
@@ -57,14 +57,14 @@ func main() {
 		fmt.Println("  ✓ Dormitories seeded")
 	}
 
-	// Seed medical services
+	// Seed medical services (near Narxoz / Almaty)
 	_, err = pool.Exec(ctx, `
 		INSERT INTO medical_services (id, name, type, address, phone, working_hours, description, is_free) VALUES
-		('m0000000-0000-0000-0000-000000000001', 'University Clinic KazNU', 'clinic', '71 Al-Farabi Ave, Almaty', '+7 727 377 3333', 'Mon-Fri 08:00-18:00', 'Free clinic for registered students of Al-Farabi KazNU. General practitioner, dentist, and therapist available.', true),
-		('m0000000-0000-0000-0000-000000000002', 'City Polyclinic #4', 'clinic', '105 Abai Ave, Almaty', '+7 727 292 5050', 'Mon-Sat 08:00-20:00', 'Public polyclinic accepting foreign students with valid health insurance. Walk-in and appointments.', false),
+		('m0000000-0000-0000-0000-000000000001', 'Narxoz University Health Center', 'clinic', '55 Zhandosov St, Almaty', '+7 727 346 6464', 'Mon-Fri 08:00-18:00', 'Free on-campus clinic for registered Narxoz students. General practitioner and basic health services. Referrals to specialists available.', true),
+		('m0000000-0000-0000-0000-000000000002', 'City Polyclinic #4', 'clinic', '105 Abai Ave, Almaty', '+7 727 292 5050', 'Mon-Sat 08:00-20:00', 'Public polyclinic accepting foreign students with valid health insurance. Walk-in and appointments available.', false),
 		('m0000000-0000-0000-0000-000000000003', 'Interteach Hospital', 'hospital', '30 Baitursynov St, Almaty', '+7 727 258 0000', '24/7', 'Private hospital with English-speaking staff. Emergency department open 24/7. Insurance accepted.', false),
-		('m0000000-0000-0000-0000-000000000004', 'Europharma', 'pharmacy', '150 Dostyk Ave, Almaty', '+7 727 311 1111', 'Daily 08:00-22:00', 'Large pharmacy chain with a wide selection of medications. Pharmacists can provide consultations.', false),
-		('m0000000-0000-0000-0000-000000000005', 'Student Mental Health Center', 'clinic', '15 Masanchi St, Almaty', '+7 727 250 4040', 'Mon-Fri 09:00-17:00', 'Free psychological consultations and mental health support for international students.', true)
+		('m0000000-0000-0000-0000-000000000004', 'Europharma', 'pharmacy', '150 Dostyk Ave, Almaty', '+7 727 311 1111', 'Daily 08:00-22:00', 'Large pharmacy chain with wide selection of medications. Pharmacists can provide consultations in Russian and English.', false),
+		('m0000000-0000-0000-0000-000000000005', 'Student Mental Health Center', 'clinic', '15 Masanchi St, Almaty', '+7 727 250 4040', 'Mon-Fri 09:00-17:00', 'Free psychological consultations and mental health support for international students in Almaty.', true)
 		ON CONFLICT DO NOTHING
 	`)
 	if err != nil {
@@ -73,14 +73,14 @@ func main() {
 		fmt.Println("  ✓ Medical services seeded")
 	}
 
-	// Seed jobs
+	// Seed jobs (near Narxoz / Almaty)
 	_, err = pool.Exec(ctx, `
 		INSERT INTO jobs (id, title, company, description, salary, schedule, location, requirements, contact_email) VALUES
 		('j0000000-0000-0000-0000-000000000001', 'English Tutor', 'LinguaCenter Almaty', 'Teach English to children and teenagers. Native or near-native English speakers preferred.', '3000-5000 KZT/hour', 'Part-time, flexible', 'Almaty, Dostyk Ave', 'Fluent English, B2+ level. Teaching experience is a plus.', 'hr@linguacenter.kz'),
-		('j0000000-0000-0000-0000-000000000002', 'Barista', 'CoffeeBox', 'Join our team as a barista at a popular coffee shop near KazNU campus.', '150000 KZT/month', 'Part-time, shifts', 'Almaty, Al-Farabi Ave', 'No experience needed. Training provided. Must speak basic Russian or Kazakh.', 'jobs@coffeebox.kz'),
+		('j0000000-0000-0000-0000-000000000002', 'Barista', 'CoffeeBox', 'Join our team as a barista at a popular coffee shop near Narxoz campus.', '150000 KZT/month', 'Part-time, shifts', 'Almaty, Zhandosov St', 'No experience needed. Training provided. Must speak basic Russian or Kazakh.', 'jobs@coffeebox.kz'),
 		('j0000000-0000-0000-0000-000000000003', 'Junior Frontend Developer', 'TechStart KZ', 'Work on web applications using React. Remote-friendly position for students.', '200000-300000 KZT/month', 'Part-time, remote', 'Remote / Almaty', 'Knowledge of HTML, CSS, JavaScript, React. Git basics.', 'careers@techstart.kz'),
 		('j0000000-0000-0000-0000-000000000004', 'Content Writer (English)', 'Digital Nomad Agency', 'Write blog posts and social media content in English for international clients.', '2000-4000 KZT/article', 'Freelance', 'Remote', 'Excellent written English. Portfolio of writing samples preferred.', 'write@dna.agency'),
-		('j0000000-0000-0000-0000-000000000005', 'Campus Ambassador', 'Kaspi Bank', 'Promote Kaspi products and services among students at your university.', '100000 KZT/month', 'Part-time, flexible', 'Almaty / Astana', 'Active student. Good communication skills. Social media presence.', 'ambassador@kaspi.kz')
+		('j0000000-0000-0000-0000-000000000005', 'Campus Ambassador', 'Kaspi Bank', 'Promote Kaspi products and services among Narxoz students on campus.', '100000 KZT/month', 'Part-time, flexible', 'Almaty, Narxoz Campus', 'Active Narxoz student. Good communication skills. Social media presence.', 'ambassador@kaspi.kz')
 		ON CONFLICT DO NOTHING
 	`)
 	if err != nil {
@@ -99,10 +99,12 @@ func main() {
 Almaty has a single metro line with 11 stations running from north to south. Fare: 80 KZT per ride.
 - Operating hours: 06:15 - 23:30
 - Buy tokens at any station or use an Onay card
+- Nearest metro to Narxoz: Auezov Theatre station (bus connection)
 
 ### Buses
 City buses cover all major routes. Fare: 150 KZT (cash) or 80 KZT (Onay card).
 - Download the 2GIS app for real-time routes and schedules
+- Buses to Narxoz campus: routes 63, 29, 141
 - Most buses run from 06:00 to 23:00
 
 ### Onay Card
@@ -127,7 +129,7 @@ The Onay card is a reloadable transport card accepted on all public transport.
 ### Documents Needed
 - Passport with valid visa
 - IIN (Individual Identification Number)
-- Student ID or enrollment letter
+- Student ID or enrollment letter from Narxoz
 - Phone number registered in Kazakhstan
 
 ### Getting Your IIN
@@ -170,7 +172,7 @@ The Onay card is a reloadable transport card accepted on all public transport.
 ### Tips
 - Register your SIM card within 15 days of purchase (required by law)
 - Top up via Kaspi app or terminal
-- Wi-Fi is available in most cafes, universities, and dormitories
+- Wi-Fi is available on the Narxoz campus, in most cafes, and dormitories
 - Download 2GIS, Yandex Go, and Kaspi.kz apps immediately')
 		ON CONFLICT DO NOTHING
 	`)

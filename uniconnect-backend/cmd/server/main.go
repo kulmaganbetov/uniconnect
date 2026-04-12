@@ -47,7 +47,7 @@ func main() {
 	profileSvc := service.NewProfileService(db)
 	adminSvc := service.NewAdminService(db)
 	pageSvc := service.NewPageContentService(db)
-	aiSvc := service.NewAIService(cfg.AnthropicAPIKey, cfg.AnthropicModel)
+	aiSvc := service.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel)
 
 	// Handlers
 	authH := handler.NewAuthHandler(authSvc)
