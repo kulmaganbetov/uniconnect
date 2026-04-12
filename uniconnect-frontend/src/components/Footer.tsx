@@ -21,7 +21,7 @@ export default function Footer() {
               </div>
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">
-              A unified support platform for foreign students in Kazakhstan.
+              A unified support platform for Narxoz University students.
               Find housing, healthcare, jobs, and guidance in one place.
             </p>
           </div>
@@ -122,7 +122,7 @@ export default function Footer() {
               Contact
             </h4>
             <ul className="space-y-2 text-sm text-gray-400">
-              <li>71 Al-Farabi Ave</li>
+              <li>55 Zhandosov St</li>
               <li>Almaty, Kazakhstan</li>
               <li>
                 <a
@@ -149,7 +149,7 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} UniConnect KZ. All rights
             reserved.
           </p>
-          <p>Built for foreign students in Kazakhstan.</p>
+          <p>Built for Narxoz University students.</p>
         </div>
       </div>
     </footer>

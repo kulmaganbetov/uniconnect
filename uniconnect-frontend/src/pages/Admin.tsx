@@ -77,6 +77,19 @@ interface PageContent {
   updated_at: string;
 }
 
+interface DormApplication {
+  id: string;
+  user_id: string;
+  dormitory_id: string;
+  dormitory_name: string;
+  user_name: string;
+  user_email: string;
+  user_country: string;
+  status: string;
+  message: string;
+  created_at: string;
+}
+
 interface PsychologyRequest {
   id: string;
   user_id: string;
@@ -398,10 +411,26 @@ function DormitoriesTab() {
   const toast = useToast();
   const [editing, setEditing] = useState<Dormitory | null>(null);
   const [creating, setCreating] = useState(false);
+  const [subView, setSubView] = useState<"list" | "applications">("list");
 
   const query = useQuery({
     queryKey: ["admin", "dormitories"],
     queryFn: () => apiGet<Dormitory[]>("/api/dormitory"),
+  });
+
+  const appsQuery = useQuery({
+    queryKey: ["admin", "dorm-applications"],
+    queryFn: () => apiGet<DormApplication[]>("/api/admin/dormitory-applications"),
+  });
+
+  const updateAppStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiPut<DormApplication>(`/api/admin/dormitory-applications/${id}`, { status }),
+    onSuccess: () => {
+      toast.success("Application status updated");
+      qc.invalidateQueries({ queryKey: ["admin", "dorm-applications"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const create = useMutation({
@@ -436,58 +465,158 @@ function DormitoriesTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (query.isLoading) return <LoadingSpinner label="Loading dormitories..." />;
-  if (query.isError)
-    return <ErrorBanner message={(query.error as Error).message} />;
-
-  const items = query.data || [];
+  const apps = appsQuery.data || [];
+  const pendingCount = apps.filter((a) => a.status === "pending").length;
+  const approvedCount = apps.filter((a) => a.status === "approved").length;
 
   return (
     <>
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setCreating(true)} className="btn-primary">
-          + Add dormitory
+      {/* Sub-navigation */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setSubView("list")}
+          className={`tab-button ${subView === "list" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Dormitories
         </button>
+        <button
+          onClick={() => setSubView("applications")}
+          className={`tab-button ${subView === "applications" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Applications
+          {pendingCount > 0 && (
+            <span className="ml-1.5 bg-yellow-100 text-yellow-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+        <div className="flex-1" />
+        {subView === "list" && (
+          <button onClick={() => setCreating(true)} className="btn-primary">
+            + Add dormitory
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {items.map((d) => (
-          <div key={d.id} className="card p-5">
-            <div className="flex justify-between items-start gap-3 mb-2">
-              <div>
-                <h3 className="font-bold text-navy text-lg">{d.name}</h3>
-                <div className="text-xs text-muted">{d.address}</div>
-              </div>
-              <span className="badge-green">
-                {d.available_rooms}/{d.total_rooms}
-              </span>
-            </div>
-            <p className="text-sm text-muted line-clamp-2 mb-3">
-              {d.description}
-            </p>
-            <div className="text-sm font-semibold text-text-dark mb-3">
-              ₸ {d.price_per_month.toLocaleString()} / month
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setEditing(d)}
-                className="btn-ghost flex-1"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Delete ${d.name}?`)) remove.mutate(d.id);
-                }}
-                className="btn-danger flex-1"
-              >
-                Delete
-              </button>
-            </div>
+      {/* Stats banner */}
+      {subView === "applications" && apps.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-white rounded border border-gray-200 px-4 py-3 text-center">
+            <div className="text-2xl font-bold text-navy">{apps.length}</div>
+            <div className="text-xs text-muted uppercase tracking-wider">Total</div>
           </div>
-        ))}
-        {items.length === 0 && <EmptyState message="No dormitories yet." />}
-      </div>
+          <div className="bg-white rounded border border-gray-200 px-4 py-3 text-center">
+            <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+            <div className="text-xs text-muted uppercase tracking-wider">Pending</div>
+          </div>
+          <div className="bg-white rounded border border-gray-200 px-4 py-3 text-center">
+            <div className="text-2xl font-bold text-green-600">{approvedCount}</div>
+            <div className="text-xs text-muted uppercase tracking-wider">Approved</div>
+          </div>
+        </div>
+      )}
+
+      {subView === "list" ? (
+        <>
+          {query.isLoading ? (
+            <LoadingSpinner label="Loading dormitories..." />
+          ) : query.isError ? (
+            <ErrorBanner message={(query.error as Error).message} />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(query.data || []).map((d) => (
+                <div key={d.id} className="card p-5">
+                  <div className="flex justify-between items-start gap-3 mb-2">
+                    <div>
+                      <h3 className="font-bold text-navy text-lg">{d.name}</h3>
+                      <div className="text-xs text-muted">{d.address}</div>
+                    </div>
+                    <span className="badge-green">
+                      {d.available_rooms}/{d.total_rooms}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted line-clamp-2 mb-3">
+                    {d.description}
+                  </p>
+                  <div className="text-sm font-semibold text-text-dark mb-3">
+                    ₸ {d.price_per_month.toLocaleString()} / month
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setEditing(d)}
+                      className="btn-ghost flex-1"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete ${d.name}?`)) remove.mutate(d.id);
+                      }}
+                      className="btn-danger flex-1"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {(query.data || []).length === 0 && (
+                <EmptyState message="No dormitories yet." />
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {appsQuery.isLoading ? (
+            <LoadingSpinner label="Loading applications..." />
+          ) : appsQuery.isError ? (
+            <ErrorBanner message={(appsQuery.error as Error).message} />
+          ) : apps.length === 0 ? (
+            <EmptyState message="No dormitory applications yet." />
+          ) : (
+            <div className="space-y-3">
+              {apps.map((a) => (
+                <div key={a.id} className="card p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+                    <div>
+                      <h4 className="font-bold text-navy">{a.user_name}</h4>
+                      <div className="text-xs text-muted">
+                        {a.user_email} · {a.user_country || "—"}
+                      </div>
+                      <div className="text-xs text-text-dark mt-1">
+                        Applied to: <strong>{a.dormitory_name}</strong>
+                      </div>
+                      <div className="text-xs text-muted">
+                        {new Date(a.created_at).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </div>
+                    </div>
+                    <select
+                      value={a.status}
+                      onChange={(e) =>
+                        updateAppStatus.mutate({ id: a.id, status: e.target.value })
+                      }
+                      className="border border-gray-300 rounded px-2 py-1 text-sm bg-white self-start"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                  {a.message && (
+                    <pre className="text-xs text-muted whitespace-pre-wrap font-sans bg-bg-light rounded p-3 mt-2">
+                      {a.message}
+                    </pre>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {creating && (
         <DormitoryModal

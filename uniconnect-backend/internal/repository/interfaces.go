@@ -29,8 +29,8 @@ type DormitoryRepository interface {
 	UpdateDormitory(ctx context.Context, id uuid.UUID, d *model.Dormitory) (*model.Dormitory, error)
 	DeleteDormitory(ctx context.Context, id uuid.UUID) error
 	CreateDormitoryApplication(ctx context.Context, app *model.DormitoryApplication) error
-	GetUserDormitoryApplications(ctx context.Context, userID uuid.UUID) ([]model.DormitoryApplication, error)
-	GetAllDormitoryApplications(ctx context.Context) ([]model.DormitoryApplication, error)
+	GetUserDormitoryApplications(ctx context.Context, userID uuid.UUID) ([]model.DormApplicationDetail, error)
+	GetAllDormitoryApplications(ctx context.Context) ([]model.DormApplicationDetail, error)
 	UpdateDormitoryApplicationStatus(ctx context.Context, id uuid.UUID, status string) (*model.DormitoryApplication, error)
 }
 

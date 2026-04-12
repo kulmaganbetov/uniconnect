@@ -77,6 +77,22 @@ type DormitoryApplication struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+// DormApplicationDetail is a richer view returned by admin and
+// my-applications endpoints. It includes the dormitory name and
+// (for admins) the applicant's name, email, and country.
+type DormApplicationDetail struct {
+	ID            uuid.UUID `json:"id"`
+	UserID        uuid.UUID `json:"user_id"`
+	DormitoryID   uuid.UUID `json:"dormitory_id"`
+	Status        string    `json:"status"`
+	Message       string    `json:"message"`
+	CreatedAt     time.Time `json:"created_at"`
+	DormitoryName string    `json:"dormitory_name"`
+	UserName      string    `json:"user_name,omitempty"`
+	UserEmail     string    `json:"user_email,omitempty"`
+	UserCountry   string    `json:"user_country,omitempty"`
+}
+
 type MedicalService struct {
 	ID           uuid.UUID `json:"id"`
 	Name         string    `json:"name"`

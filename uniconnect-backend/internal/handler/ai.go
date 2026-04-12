@@ -16,13 +16,13 @@ func NewAIHandler(svc *service.AIService) *AIHandler {
 	return &AIHandler{svc: svc}
 }
 
-// Chat sends a conversation history to the Claude API and returns the
+// Chat sends a conversation history to the OpenAI API and returns the
 // assistant reply. Auth is required.
 func (h *AIHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	if !h.svc.IsConfigured() {
 		writeJSON(w, http.StatusServiceUnavailable, model.APIResponse{
 			Success: false,
-			Error:   "AI consultant is not configured. Set ANTHROPIC_API_KEY on the server.",
+			Error:   "AI consultant is not configured. Set OPENAI_API_KEY on the server.",
 		})
 		return
 	}
