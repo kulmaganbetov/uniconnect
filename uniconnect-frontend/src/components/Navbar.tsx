@@ -18,6 +18,7 @@ const navLinks: NavLinkItem[] = [
   { to: "/psychology", label: "Psychology", auth: true },
   { to: "/guides", label: "Guides", auth: false },
   { to: "/ai", label: "AI Consultant", auth: true },
+  { to: "/sos", label: "SOS", auth: false },
 ];
 
 export default function Navbar() {

@@ -11,6 +11,7 @@ import Guides from "./pages/Guides";
 import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import AIChat from "./pages/AIChat";
+import Emergency from "./pages/Emergency";
 import PrivateRoute from "./components/PrivateRoute";
 import { ROLES } from "./lib/roles";
 
@@ -29,6 +30,7 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/guides" element={<Guides />} />
+      <Route path="/sos" element={<Emergency />} />
 
       {/* Private routes */}
       <Route

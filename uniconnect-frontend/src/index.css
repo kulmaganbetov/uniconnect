@@ -21,7 +21,7 @@
   h4,
   h5,
   h6 {
-    color: #1a1a2e;
+    color: inherit;
     font-weight: 700;
   }
 }
