@@ -1491,9 +1491,8 @@ function PsychologyTab() {
               className="border border-gray-300 rounded px-2 py-1 text-sm bg-white"
             >
               <option value="pending">Pending</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="in_progress">In progress</option>
+              <option value="resolved">Resolved</option>
             </select>
           </div>
           <p className="text-sm text-text-dark whitespace-pre-wrap">
