@@ -8,7 +8,7 @@ import (
 )
 
 func (db *DB) GetAllDormitories(ctx context.Context) ([]model.Dormitory, error) {
-	query := `SELECT id, name, address, total_rooms, available_rooms, price_per_month, description, created_at FROM dormitories ORDER BY created_at DESC`
+	query := `SELECT id, name, address, total_rooms, available_rooms, price_per_month, description, COALESCE(image_url, ''), created_at FROM dormitories ORDER BY created_at DESC`
 	rows, err := db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
@@ -18,7 +18,7 @@ func (db *DB) GetAllDormitories(ctx context.Context) ([]model.Dormitory, error) 
 	var dorms []model.Dormitory
 	for rows.Next() {
 		var d model.Dormitory
-		if err := rows.Scan(&d.ID, &d.Name, &d.Address, &d.TotalRooms, &d.AvailableRooms, &d.PricePerMonth, &d.Description, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &d.Address, &d.TotalRooms, &d.AvailableRooms, &d.PricePerMonth, &d.Description, &d.ImageURL, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		dorms = append(dorms, d)
@@ -28,9 +28,9 @@ func (db *DB) GetAllDormitories(ctx context.Context) ([]model.Dormitory, error) 
 
 func (db *DB) GetDormitoryByID(ctx context.Context, id uuid.UUID) (*model.Dormitory, error) {
 	d := &model.Dormitory{}
-	query := `SELECT id, name, address, total_rooms, available_rooms, price_per_month, description, created_at FROM dormitories WHERE id = $1`
+	query := `SELECT id, name, address, total_rooms, available_rooms, price_per_month, description, COALESCE(image_url, ''), created_at FROM dormitories WHERE id = $1`
 	err := db.Pool.QueryRow(ctx, query, id).Scan(
-		&d.ID, &d.Name, &d.Address, &d.TotalRooms, &d.AvailableRooms, &d.PricePerMonth, &d.Description, &d.CreatedAt,
+		&d.ID, &d.Name, &d.Address, &d.TotalRooms, &d.AvailableRooms, &d.PricePerMonth, &d.Description, &d.ImageURL, &d.CreatedAt,
 	)
 	if err != nil {
 		return nil, err

@@ -38,6 +38,7 @@ interface Dormitory {
   available_rooms: number;
   price_per_month: number;
   description: string;
+  image_url: string;
 }
 
 interface Job {
@@ -61,6 +62,7 @@ interface MedicalService {
   working_hours: string;
   description: string;
   is_free: boolean;
+  image_url: string;
 }
 
 interface Guide {
@@ -68,12 +70,14 @@ interface Guide {
   title: string;
   category: string;
   content: string;
+  image_url: string;
 }
 
 interface PageContent {
   key: string;
   title: string;
   body: string;
+  image_url: string;
   updated_at: string;
 }
 
@@ -211,13 +215,42 @@ export default function Admin() {
 
 /* ─────────────────── Users tab ─────────────────── */
 
+interface NewUserForm {
+  name: string;
+  email: string;
+  password: string;
+  country: string;
+  university: string;
+  role: string;
+}
+
+const emptyUser: NewUserForm = {
+  name: "",
+  email: "",
+  password: "",
+  country: "Kazakhstan",
+  university: "Narxoz University",
+  role: "student",
+};
+
 function UsersTab() {
   const qc = useQueryClient();
   const toast = useToast();
+  const [creating, setCreating] = useState(false);
 
   const usersQuery = useQuery({
     queryKey: ["admin", "users"],
     queryFn: () => apiGet<UserRow[]>("/api/admin/users"),
+  });
+
+  const createUser = useMutation({
+    mutationFn: (body: NewUserForm) => apiPost<UserRow>("/api/admin/users", body),
+    onSuccess: () => {
+      toast.success("User created");
+      qc.invalidateQueries({ queryKey: ["admin", "users"] });
+      setCreating(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const updateRole = useMutation({
@@ -248,68 +281,170 @@ function UsersTab() {
   const users = usersQuery.data || [];
 
   return (
-    <div className="card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-bg-light text-text-dark">
-            <tr>
-              <Th>Name</Th>
-              <Th>Email</Th>
-              <Th>University</Th>
-              <Th>Role</Th>
-              <Th></Th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t border-gray-100">
-                <Td className="font-semibold text-navy">{u.name}</Td>
-                <Td>{u.email}</Td>
-                <Td>{u.university || "—"}</Td>
-                <Td>
-                  <select
-                    value={u.role}
-                    onChange={(e) =>
-                      updateRole.mutate({ id: u.id, role: e.target.value })
-                    }
-                    className="border border-gray-300 rounded px-2 py-1 text-sm bg-white"
-                  >
-                    {Object.values(ROLES).map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABELS[r]}
-                      </option>
-                    ))}
-                  </select>
-                </Td>
-                <Td>
-                  <button
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Permanently delete ${u.name}? This cannot be undone.`
-                        )
-                      ) {
-                        deleteUser.mutate(u.id);
-                      }
-                    }}
-                    className="btn-danger"
-                  >
-                    Delete
-                  </button>
-                </Td>
-              </tr>
-            ))}
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={5} className="text-center text-muted py-8">
-                  No users found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+    <>
+      <div className="flex justify-end mb-4">
+        <button onClick={() => setCreating(true)} className="btn-primary">
+          + Add user
+        </button>
       </div>
-    </div>
+
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-bg-light text-text-dark">
+              <tr>
+                <Th>Name</Th>
+                <Th>Email</Th>
+                <Th>University</Th>
+                <Th>Role</Th>
+                <Th></Th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="border-t border-gray-100">
+                  <Td className="font-semibold text-navy">{u.name}</Td>
+                  <Td>{u.email}</Td>
+                  <Td>{u.university || "—"}</Td>
+                  <Td>
+                    <select
+                      value={u.role}
+                      onChange={(e) =>
+                        updateRole.mutate({ id: u.id, role: e.target.value })
+                      }
+                      className="border border-gray-300 rounded px-2 py-1 text-sm bg-white"
+                    >
+                      {Object.values(ROLES).map((r) => (
+                        <option key={r} value={r}>
+                          {ROLE_LABELS[r]}
+                        </option>
+                      ))}
+                    </select>
+                  </Td>
+                  <Td>
+                    <button
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Permanently delete ${u.name}? This cannot be undone.`
+                          )
+                        ) {
+                          deleteUser.mutate(u.id);
+                        }
+                      }}
+                      className="btn-danger"
+                    >
+                      Delete
+                    </button>
+                  </Td>
+                </tr>
+              ))}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center text-muted py-8">
+                    No users found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {creating && (
+        <CreateUserModal
+          onClose={() => setCreating(false)}
+          onSave={(b) => createUser.mutate(b)}
+          saving={createUser.isPending}
+        />
+      )}
+    </>
+  );
+}
+
+function CreateUserModal({
+  onClose,
+  onSave,
+  saving,
+}: {
+  onClose: () => void;
+  onSave: (u: NewUserForm) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<NewUserForm>(emptyUser);
+
+  return (
+    <Modal title="Create new user" onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(form);
+        }}
+        className="space-y-3"
+      >
+        <Input
+          label="Full name"
+          value={form.name}
+          onChange={(v) => setForm({ ...form, name: v })}
+          required
+        />
+        <Input
+          label="Email"
+          type="email"
+          value={form.email}
+          onChange={(v) => setForm({ ...form, email: v })}
+          required
+        />
+        <Input
+          label="Temporary password"
+          type="password"
+          value={form.password}
+          onChange={(v) => setForm({ ...form, password: v })}
+          required
+          placeholder="Min 6 characters"
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Country"
+            value={form.country}
+            onChange={(v) => setForm({ ...form, country: v })}
+          />
+          <Input
+            label="University"
+            value={form.university}
+            onChange={(v) => setForm({ ...form, university: v })}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-text-dark mb-1">
+            Role
+          </label>
+          <select
+            value={form.role}
+            onChange={(e) => setForm({ ...form, role: e.target.value })}
+            className="input-field"
+          >
+            {Object.values(ROLES).map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABELS[r]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-2 pt-3">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1">
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="btn-primary flex-1 disabled:opacity-60"
+          >
+            {saving ? "Creating..." : "Create user"}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -329,6 +464,7 @@ function ContentTab() {
       apiPut<PageContent>(`/api/admin/page-content/${c.key}`, {
         title: c.title,
         body: c.body,
+        image_url: c.image_url,
       }),
     onSuccess: () => {
       toast.success("Content saved");
@@ -365,6 +501,7 @@ function ContentEditor({
 }) {
   const [title, setTitle] = useState(item.title);
   const [body, setBody] = useState(item.body);
+  const [imageUrl, setImageUrl] = useState(item.image_url || "");
 
   return (
     <div className="card p-6">
@@ -378,14 +515,30 @@ function ContentEditor({
         placeholder="Title"
       />
       <textarea
-        className="input-field min-h-[120px]"
+        className="input-field min-h-[120px] mb-3"
         value={body}
         onChange={(e) => setBody(e.target.value)}
         placeholder="Body"
       />
+      <input
+        className="input-field"
+        value={imageUrl}
+        onChange={(e) => setImageUrl(e.target.value)}
+        placeholder="Image URL (https://...)"
+      />
+      {imageUrl && (
+        <div className="mt-3">
+          <img
+            src={imageUrl}
+            alt="preview"
+            className="h-32 rounded border border-gray-200 object-cover"
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+        </div>
+      )}
       <div className="flex justify-end mt-3">
         <button
-          onClick={() => onSave({ ...item, title, body })}
+          onClick={() => onSave({ ...item, title, body, image_url: imageUrl })}
           className="btn-primary"
         >
           Save
@@ -404,6 +557,7 @@ const emptyDorm: Omit<Dormitory, "id"> = {
   available_rooms: 0,
   price_per_month: 0,
   description: "",
+  image_url: "",
 };
 
 function DormitoriesTab() {
@@ -525,37 +679,51 @@ function DormitoriesTab() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {(query.data || []).map((d) => (
-                <div key={d.id} className="card p-5">
-                  <div className="flex justify-between items-start gap-3 mb-2">
-                    <div>
-                      <h3 className="font-bold text-navy text-lg">{d.name}</h3>
-                      <div className="text-xs text-muted">{d.address}</div>
+                <div key={d.id} className="card overflow-hidden">
+                  {d.image_url ? (
+                    <img
+                      src={d.image_url}
+                      alt={d.name}
+                      className="w-full h-40 object-cover"
+                      onError={(e) =>
+                        (e.currentTarget.style.display = "none")
+                      }
+                    />
+                  ) : (
+                    <div className="h-40 bg-gradient-to-br from-navy to-primary" />
+                  )}
+                  <div className="p-5">
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <div>
+                        <h3 className="font-bold text-navy text-lg">{d.name}</h3>
+                        <div className="text-xs text-muted">{d.address}</div>
+                      </div>
+                      <span className="badge-green">
+                        {d.available_rooms}/{d.total_rooms}
+                      </span>
                     </div>
-                    <span className="badge-green">
-                      {d.available_rooms}/{d.total_rooms}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted line-clamp-2 mb-3">
-                    {d.description}
-                  </p>
-                  <div className="text-sm font-semibold text-text-dark mb-3">
-                    ₸ {d.price_per_month.toLocaleString()} / month
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setEditing(d)}
-                      className="btn-ghost flex-1"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete ${d.name}?`)) remove.mutate(d.id);
-                      }}
-                      className="btn-danger flex-1"
-                    >
-                      Delete
-                    </button>
+                    <p className="text-sm text-muted line-clamp-2 mb-3">
+                      {d.description}
+                    </p>
+                    <div className="text-sm font-semibold text-text-dark mb-3">
+                      ₸ {d.price_per_month.toLocaleString()} / month
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditing(d)}
+                        className="btn-ghost flex-1"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete ${d.name}?`)) remove.mutate(d.id);
+                        }}
+                        className="btn-danger flex-1"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -695,6 +863,10 @@ function DormitoryModal({
           label="Description"
           value={form.description}
           onChange={(v) => setForm({ ...form, description: v })}
+        />
+        <ImageUrlField
+          value={form.image_url}
+          onChange={(v) => setForm({ ...form, image_url: v })}
         />
         <ModalActions onClose={onClose} />
       </form>
@@ -900,6 +1072,7 @@ const emptyMedical: Omit<MedicalService, "id"> = {
   working_hours: "",
   description: "",
   is_free: false,
+  image_url: "",
 };
 
 function MedicalTab() {
@@ -961,34 +1134,44 @@ function MedicalTab() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {items.map((m) => (
-          <div key={m.id} className="card p-5">
-            <div className="flex justify-between items-start gap-3 mb-2">
-              <div>
-                <h3 className="font-bold text-navy">{m.name}</h3>
-                <div className="text-xs text-muted">{m.type}</div>
+          <div key={m.id} className="card overflow-hidden">
+            {m.image_url ? (
+              <img
+                src={m.image_url}
+                alt={m.name}
+                className="w-full h-36 object-cover"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            ) : null}
+            <div className="p-5">
+              <div className="flex justify-between items-start gap-3 mb-2">
+                <div>
+                  <h3 className="font-bold text-navy">{m.name}</h3>
+                  <div className="text-xs text-muted">{m.type}</div>
+                </div>
+                {m.is_free && <span className="badge-green">Free</span>}
               </div>
-              {m.is_free && <span className="badge-green">Free</span>}
-            </div>
-            <div className="text-sm text-text-dark space-y-0.5">
-              <div>{m.address}</div>
-              <div>{m.phone}</div>
-              <div className="text-muted">{m.working_hours}</div>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => setEditing(m)}
-                className="btn-ghost flex-1"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Delete ${m.name}?`)) remove.mutate(m.id);
-                }}
-                className="btn-danger flex-1"
-              >
-                Delete
-              </button>
+              <div className="text-sm text-text-dark space-y-0.5">
+                <div>{m.address}</div>
+                <div>{m.phone}</div>
+                <div className="text-muted">{m.working_hours}</div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => setEditing(m)}
+                  className="btn-ghost flex-1"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete ${m.name}?`)) remove.mutate(m.id);
+                  }}
+                  className="btn-danger flex-1"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -1070,6 +1253,10 @@ function MedicalModal({
           value={form.description}
           onChange={(v) => setForm({ ...form, description: v })}
         />
+        <ImageUrlField
+          value={form.image_url}
+          onChange={(v) => setForm({ ...form, image_url: v })}
+        />
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -1090,6 +1277,7 @@ const emptyGuide: Omit<Guide, "id"> = {
   title: "",
   category: "",
   content: "",
+  image_url: "",
 };
 
 function GuidesTab() {
@@ -1150,7 +1338,15 @@ function GuidesTab() {
       <div className="space-y-3">
         {items.map((g) => (
           <div key={g.id} className="card p-5">
-            <div className="flex justify-between items-start gap-3">
+            <div className="flex justify-between items-start gap-4">
+              {g.image_url && (
+                <img
+                  src={g.image_url}
+                  alt={g.title}
+                  className="w-24 h-24 object-cover rounded flex-shrink-0"
+                  onError={(e) => (e.currentTarget.style.display = "none")}
+                />
+              )}
               <div className="flex-1">
                 <span className="badge-yellow">{g.category}</span>
                 <h3 className="font-bold text-navy mt-2">{g.title}</h3>
@@ -1235,6 +1431,10 @@ function GuideModal({
           value={form.content}
           onChange={(v) => setForm({ ...form, content: v })}
           rows={10}
+        />
+        <ImageUrlField
+          value={form.image_url}
+          onChange={(v) => setForm({ ...form, image_url: v })}
         />
         <ModalActions onClose={onClose} />
       </form>
@@ -1443,6 +1643,39 @@ function Textarea({
         onChange={(e) => onChange(e.target.value)}
         className="input-field"
       />
+    </div>
+  );
+}
+
+// ImageUrlField is reused by the dormitory, medical and guide modals so
+// admins can paste a hosted photo URL and see an immediate preview.
+function ImageUrlField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-text-dark mb-1">
+        Image URL <span className="text-muted font-normal">(optional)</span>
+      </label>
+      <input
+        type="url"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="https://example.com/photo.jpg"
+        className="input-field"
+      />
+      {value && (
+        <img
+          src={value}
+          alt="preview"
+          className="mt-2 h-28 rounded border border-gray-200 object-cover"
+          onError={(e) => (e.currentTarget.style.display = "none")}
+        />
+      )}
     </div>
   );
 }

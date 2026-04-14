@@ -18,7 +18,9 @@ func (db *DB) CreatePsychologyRequest(ctx context.Context, req *model.Psychology
 }
 
 func (db *DB) GetUserPsychologyRequests(ctx context.Context, userID uuid.UUID) ([]model.PsychologyRequest, error) {
-	query := `SELECT id, user_id, topic, message, preferred_date, status, created_at FROM psychology_requests WHERE user_id = $1 ORDER BY created_at DESC`
+	// preferred_date is a DATE column; cast to text so pgx can scan it
+	// into a Go string without type juggling.
+	query := `SELECT id, user_id, topic, message, COALESCE(TO_CHAR(preferred_date, 'YYYY-MM-DD'), ''), status, created_at FROM psychology_requests WHERE user_id = $1 ORDER BY created_at DESC`
 	rows, err := db.Pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
@@ -41,10 +43,10 @@ func (db *DB) GetAllGuides(ctx context.Context, category string) ([]model.Guide,
 	var args []interface{}
 
 	if category != "" {
-		query = `SELECT id, title, category, content, created_at FROM guides WHERE category = $1 ORDER BY created_at DESC`
+		query = `SELECT id, title, category, content, COALESCE(image_url, ''), created_at FROM guides WHERE category = $1 ORDER BY created_at DESC`
 		args = append(args, category)
 	} else {
-		query = `SELECT id, title, category, content, created_at FROM guides ORDER BY created_at DESC`
+		query = `SELECT id, title, category, content, COALESCE(image_url, ''), created_at FROM guides ORDER BY created_at DESC`
 	}
 
 	rows, err := db.Pool.Query(ctx, query, args...)
@@ -56,7 +58,7 @@ func (db *DB) GetAllGuides(ctx context.Context, category string) ([]model.Guide,
 	var guides []model.Guide
 	for rows.Next() {
 		var g model.Guide
-		if err := rows.Scan(&g.ID, &g.Title, &g.Category, &g.Content, &g.CreatedAt); err != nil {
+		if err := rows.Scan(&g.ID, &g.Title, &g.Category, &g.Content, &g.ImageURL, &g.CreatedAt); err != nil {
 			return nil, err
 		}
 		guides = append(guides, g)
@@ -66,9 +68,9 @@ func (db *DB) GetAllGuides(ctx context.Context, category string) ([]model.Guide,
 
 func (db *DB) GetGuideByID(ctx context.Context, id uuid.UUID) (*model.Guide, error) {
 	g := &model.Guide{}
-	query := `SELECT id, title, category, content, created_at FROM guides WHERE id = $1`
+	query := `SELECT id, title, category, content, COALESCE(image_url, ''), created_at FROM guides WHERE id = $1`
 	err := db.Pool.QueryRow(ctx, query, id).Scan(
-		&g.ID, &g.Title, &g.Category, &g.Content, &g.CreatedAt,
+		&g.ID, &g.Title, &g.Category, &g.Content, &g.ImageURL, &g.CreatedAt,
 	)
 	if err != nil {
 		return nil, err

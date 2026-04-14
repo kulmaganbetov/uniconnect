@@ -61,6 +61,7 @@ func (s *DormitoryService) Create(ctx context.Context, req model.DormitoryUpsert
 		AvailableRooms: req.AvailableRooms,
 		PricePerMonth:  req.PricePerMonth,
 		Description:    req.Description,
+		ImageURL:       req.ImageURL,
 	}
 	if err := s.repo.CreateDormitory(ctx, d); err != nil {
 		return nil, ErrInternal
@@ -77,6 +78,7 @@ func (s *DormitoryService) Update(ctx context.Context, id uuid.UUID, req model.D
 		AvailableRooms: req.AvailableRooms,
 		PricePerMonth:  req.PricePerMonth,
 		Description:    req.Description,
+		ImageURL:       req.ImageURL,
 	}
 	out, err := s.repo.UpdateDormitory(ctx, id, d)
 	if err != nil {

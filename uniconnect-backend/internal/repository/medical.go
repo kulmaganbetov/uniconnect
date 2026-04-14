@@ -8,7 +8,7 @@ import (
 )
 
 func (db *DB) GetAllMedicalServices(ctx context.Context) ([]model.MedicalService, error) {
-	query := `SELECT id, name, type, address, phone, working_hours, description, is_free FROM medical_services ORDER BY name`
+	query := `SELECT id, name, type, address, phone, working_hours, description, is_free, COALESCE(image_url, '') FROM medical_services ORDER BY name`
 	rows, err := db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
@@ -18,7 +18,7 @@ func (db *DB) GetAllMedicalServices(ctx context.Context) ([]model.MedicalService
 	var services []model.MedicalService
 	for rows.Next() {
 		var s model.MedicalService
-		if err := rows.Scan(&s.ID, &s.Name, &s.Type, &s.Address, &s.Phone, &s.WorkingHours, &s.Description, &s.IsFree); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.Type, &s.Address, &s.Phone, &s.WorkingHours, &s.Description, &s.IsFree, &s.ImageURL); err != nil {
 			return nil, err
 		}
 		services = append(services, s)
@@ -28,9 +28,9 @@ func (db *DB) GetAllMedicalServices(ctx context.Context) ([]model.MedicalService
 
 func (db *DB) GetMedicalServiceByID(ctx context.Context, id uuid.UUID) (*model.MedicalService, error) {
 	s := &model.MedicalService{}
-	query := `SELECT id, name, type, address, phone, working_hours, description, is_free FROM medical_services WHERE id = $1`
+	query := `SELECT id, name, type, address, phone, working_hours, description, is_free, COALESCE(image_url, '') FROM medical_services WHERE id = $1`
 	err := db.Pool.QueryRow(ctx, query, id).Scan(
-		&s.ID, &s.Name, &s.Type, &s.Address, &s.Phone, &s.WorkingHours, &s.Description, &s.IsFree,
+		&s.ID, &s.Name, &s.Type, &s.Address, &s.Phone, &s.WorkingHours, &s.Description, &s.IsFree, &s.ImageURL,
 	)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,13 @@ func (db *DB) CreateMedicalAppointment(ctx context.Context, app *model.MedicalAp
 }
 
 func (db *DB) GetUserMedicalAppointments(ctx context.Context, userID uuid.UUID) ([]model.MedicalAppointment, error) {
-	query := `SELECT id, user_id, service_id, date, time, status, created_at FROM medical_appointments WHERE user_id = $1 ORDER BY created_at DESC`
+	// date is DATE, time is TIME. Cast both to text so pgx can scan them
+	// directly into Go strings (which is what the API model uses).
+	query := `SELECT id, user_id, service_id,
+		COALESCE(TO_CHAR(date, 'YYYY-MM-DD'), ''),
+		COALESCE(TO_CHAR(time, 'HH24:MI'), ''),
+		status, created_at
+		FROM medical_appointments WHERE user_id = $1 ORDER BY created_at DESC`
 	rows, err := db.Pool.Query(ctx, query, userID)
 	if err != nil {
 		return nil, err

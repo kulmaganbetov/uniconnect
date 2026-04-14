@@ -43,7 +43,7 @@ func (s *PageContentService) Upsert(ctx context.Context, key string, req model.U
 	if key == "" {
 		return nil, errors.New("key is required")
 	}
-	p, err := s.repo.UpsertPageContent(ctx, key, req.Title, req.Body)
+	p, err := s.repo.UpsertPageContent(ctx, key, req.Title, req.Body, req.ImageURL)
 	if err != nil {
 		return nil, ErrInternal
 	}

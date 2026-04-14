@@ -73,7 +73,7 @@ type GuideRepository interface {
 type PageContentRepository interface {
 	GetAllPageContents(ctx context.Context) ([]model.PageContent, error)
 	GetPageContent(ctx context.Context, key string) (*model.PageContent, error)
-	UpsertPageContent(ctx context.Context, key, title, body string) (*model.PageContent, error)
+	UpsertPageContent(ctx context.Context, key, title, body, imageURL string) (*model.PageContent, error)
 }
 
 // Compile-time assertions that *DB satisfies every repository interface.
