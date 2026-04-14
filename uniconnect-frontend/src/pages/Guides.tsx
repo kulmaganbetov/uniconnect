@@ -10,6 +10,7 @@ interface Guide {
   title: string;
   category: string;
   content: string;
+  image_url: string;
   created_at: string;
 }
 
@@ -100,21 +101,33 @@ export default function Guides() {
                     <button
                       key={guide.id}
                       onClick={() => setSelected(guide)}
-                      className="card p-7 text-left group"
+                      className="card text-left group overflow-hidden"
                     >
-                      <div className="text-4xl mb-4">{cat.icon}</div>
-                      <span className="badge-red mb-3 capitalize">
-                        {guide.category}
-                      </span>
-                      <h3 className="text-lg font-bold text-navy mt-3 mb-2 group-hover:text-primary transition-colors">
-                        {guide.title}
-                      </h3>
-                      <p className="text-sm text-muted line-clamp-3">
-                        {guide.content}
-                      </p>
-                      <span className="text-primary font-semibold text-sm mt-4 inline-flex items-center gap-1">
-                        Read guide <span aria-hidden>→</span>
-                      </span>
+                      {guide.image_url ? (
+                        <img
+                          src={guide.image_url}
+                          alt={guide.title}
+                          className="w-full h-36 object-cover"
+                          onError={(e) =>
+                            (e.currentTarget.style.display = "none")
+                          }
+                        />
+                      ) : null}
+                      <div className="p-7">
+                        <div className="text-4xl mb-4">{cat.icon}</div>
+                        <span className="badge-red mb-3 capitalize">
+                          {guide.category}
+                        </span>
+                        <h3 className="text-lg font-bold text-navy mt-3 mb-2 group-hover:text-primary transition-colors">
+                          {guide.title}
+                        </h3>
+                        <p className="text-sm text-muted line-clamp-3">
+                          {guide.content}
+                        </p>
+                        <span className="text-primary font-semibold text-sm mt-4 inline-flex items-center gap-1">
+                          Read guide <span aria-hidden>→</span>
+                        </span>
+                      </div>
                     </button>
                   );
                 })}
@@ -151,6 +164,16 @@ export default function Guides() {
                     ×
                   </button>
                 </div>
+                {selected.image_url && (
+                  <img
+                    src={selected.image_url}
+                    alt={selected.title}
+                    className="w-full max-h-72 object-cover rounded mb-5"
+                    onError={(e) =>
+                      (e.currentTarget.style.display = "none")
+                    }
+                  />
+                )}
                 <div className="prose prose-sm max-w-none text-text-dark whitespace-pre-wrap leading-relaxed">
                   {selected.content}
                 </div>

@@ -1,6 +1,16 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { apiGet } from "../api/axios";
+
+interface PageContent {
+  key: string;
+  title: string;
+  body: string;
+  image_url: string;
+  updated_at: string;
+}
 
 const features = [
   {
@@ -156,25 +166,61 @@ const testimonials = [
 ];
 
 export default function Landing() {
+  const contentQuery = useQuery({
+    queryKey: ["page-content"],
+    queryFn: () => apiGet<PageContent[]>("/api/page-content"),
+    staleTime: 60_000,
+  });
+
+  const contentMap = (contentQuery.data || []).reduce<Record<string, PageContent>>(
+    (acc, item) => {
+      acc[item.key] = item;
+      return acc;
+    },
+    {}
+  );
+
+  const hero = contentMap["landing_hero"];
+  const heroTitle = hero?.title || "Welcome to UniConnect KZ";
+  const heroBody =
+    hero?.body ||
+    "The all-in-one platform for Narxoz University students — dormitories, medical services, part-time jobs, psychological support, and digital guides to help you thrive in Almaty.";
+  const heroImage = hero?.image_url;
+
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
 
       {/* Hero */}
-      <section className="hero-bg text-white">
+      <section
+        className="hero-bg text-white relative"
+        style={
+          heroImage
+            ? {
+                backgroundImage: `linear-gradient(rgba(10, 14, 39, 0.78), rgba(10, 14, 39, 0.85)), url(${heroImage})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+              }
+            : undefined
+        }
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
           <div className="max-w-3xl">
             <span className="inline-block bg-primary/20 text-primary-light border border-primary/40 rounded px-4 py-1 text-xs font-bold uppercase tracking-widest mb-6">
               For Narxoz University Students
             </span>
             <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-tight mb-6">
-              Welcome to{" "}
-              <span className="text-primary">UniConnect KZ</span>
+              {heroTitle.includes("UniConnect") ? (
+                <>
+                  {heroTitle.split("UniConnect")[0]}
+                  <span className="text-primary">UniConnect KZ</span>
+                </>
+              ) : (
+                heroTitle
+              )}
             </h1>
-            <p className="text-lg md:text-xl text-gray-200 leading-relaxed mb-10 max-w-2xl">
-              The all-in-one platform for Narxoz University students —
-              dormitories, medical services, part-time jobs, psychological
-              support, and digital guides to help you thrive in Almaty.
+            <p className="text-lg md:text-xl text-gray-200 leading-relaxed mb-10 max-w-2xl whitespace-pre-line">
+              {heroBody}
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link to="/register" className="btn-primary">

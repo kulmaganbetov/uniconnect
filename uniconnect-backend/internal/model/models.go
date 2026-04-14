@@ -65,6 +65,7 @@ type Dormitory struct {
 	AvailableRooms int       `json:"available_rooms"`
 	PricePerMonth  float64   `json:"price_per_month"`
 	Description    string    `json:"description"`
+	ImageURL       string    `json:"image_url"`
 	CreatedAt      time.Time `json:"created_at"`
 }
 
@@ -102,6 +103,7 @@ type MedicalService struct {
 	WorkingHours string    `json:"working_hours"`
 	Description  string    `json:"description"`
 	IsFree       bool      `json:"is_free"`
+	ImageURL     string    `json:"image_url"`
 }
 
 type MedicalAppointment struct {
@@ -150,6 +152,7 @@ type Guide struct {
 	Title     string    `json:"title"`
 	Category  string    `json:"category"`
 	Content   string    `json:"content"`
+	ImageURL  string    `json:"image_url"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -247,12 +250,14 @@ type PageContent struct {
 	Key       string    `json:"key"`
 	Title     string    `json:"title"`
 	Body      string    `json:"body"`
+	ImageURL  string    `json:"image_url"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type UpdatePageContentRequest struct {
-	Title string `json:"title"`
-	Body  string `json:"body"`
+	Title    string `json:"title"`
+	Body     string `json:"body"`
+	ImageURL string `json:"image_url"`
 }
 
 type UpdateUserRoleRequest struct {
@@ -283,6 +288,7 @@ type DormitoryUpsertRequest struct {
 	AvailableRooms int     `json:"available_rooms"`
 	PricePerMonth  float64 `json:"price_per_month"`
 	Description    string  `json:"description"`
+	ImageURL       string  `json:"image_url"`
 }
 
 type JobUpsertRequest struct {
@@ -304,10 +310,23 @@ type MedicalUpsertRequest struct {
 	WorkingHours string `json:"working_hours"`
 	Description  string `json:"description"`
 	IsFree       bool   `json:"is_free"`
+	ImageURL     string `json:"image_url"`
 }
 
 type GuideUpsertRequest struct {
 	Title    string `json:"title"`
 	Category string `json:"category"`
 	Content  string `json:"content"`
+	ImageURL string `json:"image_url"`
+}
+
+// AdminCreateUserRequest is used by admins to provision a new user
+// account directly from the admin panel (bypassing public registration).
+type AdminCreateUserRequest struct {
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	Country    string `json:"country"`
+	University string `json:"university"`
+	Role       string `json:"role"`
 }

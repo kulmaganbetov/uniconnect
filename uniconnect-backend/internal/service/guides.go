@@ -32,6 +32,7 @@ func (s *GuideService) Create(ctx context.Context, req model.GuideUpsertRequest)
 		Title:    req.Title,
 		Category: req.Category,
 		Content:  req.Content,
+		ImageURL: req.ImageURL,
 	}
 	if err := s.repo.CreateGuide(ctx, g); err != nil {
 		return nil, ErrInternal
@@ -44,6 +45,7 @@ func (s *GuideService) Update(ctx context.Context, id uuid.UUID, req model.Guide
 		Title:    req.Title,
 		Category: req.Category,
 		Content:  req.Content,
+		ImageURL: req.ImageURL,
 	}
 	out, err := s.repo.UpdateGuide(ctx, id, g)
 	if err != nil {

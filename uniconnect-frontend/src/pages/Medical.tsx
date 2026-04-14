@@ -14,6 +14,7 @@ interface MedicalService {
   working_hours: string;
   description: string;
   is_free: boolean;
+  image_url: string;
 }
 
 interface MedicalAppointment {
@@ -130,7 +131,18 @@ export default function Medical() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {(servicesQuery.data || []).map((svc) => (
-                  <div key={svc.id} className="card p-6">
+                  <div key={svc.id} className="card overflow-hidden">
+                    {svc.image_url && (
+                      <img
+                        src={svc.image_url}
+                        alt={svc.name}
+                        className="w-full h-40 object-cover"
+                        onError={(e) =>
+                          (e.currentTarget.style.display = "none")
+                        }
+                      />
+                    )}
+                    <div className="p-6">
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <h3 className="text-lg font-bold text-navy mb-1">
@@ -180,6 +192,7 @@ export default function Medical() {
                     >
                       Book appointment
                     </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -81,6 +81,27 @@ func (h *AdminHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: users})
 }
 
+// CreateUser provisions a new account from the admin panel.
+func (h *AdminHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	var req model.AdminCreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+
+	user, err := h.svc.CreateUser(r.Context(), req)
+	if err != nil {
+		if errors.Is(err, service.ErrInternal) {
+			writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to create user"})
+			return
+		}
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, model.APIResponse{Success: true, Data: user})
+}
+
 func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := uuid.Parse(idStr)

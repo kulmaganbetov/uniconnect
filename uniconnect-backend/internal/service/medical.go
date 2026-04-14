@@ -56,6 +56,7 @@ func (s *MedicalService) Create(ctx context.Context, req model.MedicalUpsertRequ
 		WorkingHours: req.WorkingHours,
 		Description:  req.Description,
 		IsFree:       req.IsFree,
+		ImageURL:     req.ImageURL,
 	}
 	if err := s.repo.CreateMedicalService(ctx, svc); err != nil {
 		return nil, ErrInternal
@@ -72,6 +73,7 @@ func (s *MedicalService) Update(ctx context.Context, id uuid.UUID, req model.Med
 		WorkingHours: req.WorkingHours,
 		Description:  req.Description,
 		IsFree:       req.IsFree,
+		ImageURL:     req.ImageURL,
 	}
 	out, err := s.repo.UpdateMedicalService(ctx, id, svc)
 	if err != nil {

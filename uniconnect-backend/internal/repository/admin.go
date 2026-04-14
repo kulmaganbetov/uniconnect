@@ -31,10 +31,10 @@ func (db *DB) DeleteUser(ctx context.Context, id uuid.UUID) error {
 
 func (db *DB) CreateDormitory(ctx context.Context, d *model.Dormitory) error {
 	return db.Pool.QueryRow(ctx, `
-		INSERT INTO dormitories (id, name, address, total_rooms, available_rooms, price_per_month, description, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+		INSERT INTO dormitories (id, name, address, total_rooms, available_rooms, price_per_month, description, image_url, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
 		RETURNING created_at`,
-		d.ID, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.PricePerMonth, d.Description,
+		d.ID, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.PricePerMonth, d.Description, d.ImageURL,
 	).Scan(&d.CreatedAt)
 }
 
@@ -42,11 +42,11 @@ func (db *DB) UpdateDormitory(ctx context.Context, id uuid.UUID, d *model.Dormit
 	out := &model.Dormitory{}
 	err := db.Pool.QueryRow(ctx, `
 		UPDATE dormitories
-		SET name = $2, address = $3, total_rooms = $4, available_rooms = $5, price_per_month = $6, description = $7
+		SET name = $2, address = $3, total_rooms = $4, available_rooms = $5, price_per_month = $6, description = $7, image_url = $8
 		WHERE id = $1
-		RETURNING id, name, address, total_rooms, available_rooms, price_per_month, description, created_at`,
-		id, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.PricePerMonth, d.Description,
-	).Scan(&out.ID, &out.Name, &out.Address, &out.TotalRooms, &out.AvailableRooms, &out.PricePerMonth, &out.Description, &out.CreatedAt)
+		RETURNING id, name, address, total_rooms, available_rooms, price_per_month, description, COALESCE(image_url, ''), created_at`,
+		id, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.PricePerMonth, d.Description, d.ImageURL,
+	).Scan(&out.ID, &out.Name, &out.Address, &out.TotalRooms, &out.AvailableRooms, &out.PricePerMonth, &out.Description, &out.ImageURL, &out.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +110,9 @@ func (db *DB) GetAllJobApplications(ctx context.Context) ([]model.JobApplication
 
 func (db *DB) CreateMedicalService(ctx context.Context, s *model.MedicalService) error {
 	_, err := db.Pool.Exec(ctx, `
-		INSERT INTO medical_services (id, name, type, address, phone, working_hours, description, is_free)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		s.ID, s.Name, s.Type, s.Address, s.Phone, s.WorkingHours, s.Description, s.IsFree,
+		INSERT INTO medical_services (id, name, type, address, phone, working_hours, description, is_free, image_url)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		s.ID, s.Name, s.Type, s.Address, s.Phone, s.WorkingHours, s.Description, s.IsFree, s.ImageURL,
 	)
 	return err
 }
@@ -121,11 +121,11 @@ func (db *DB) UpdateMedicalService(ctx context.Context, id uuid.UUID, s *model.M
 	out := &model.MedicalService{}
 	err := db.Pool.QueryRow(ctx, `
 		UPDATE medical_services
-		SET name = $2, type = $3, address = $4, phone = $5, working_hours = $6, description = $7, is_free = $8
+		SET name = $2, type = $3, address = $4, phone = $5, working_hours = $6, description = $7, is_free = $8, image_url = $9
 		WHERE id = $1
-		RETURNING id, name, type, address, phone, working_hours, description, is_free`,
-		id, s.Name, s.Type, s.Address, s.Phone, s.WorkingHours, s.Description, s.IsFree,
-	).Scan(&out.ID, &out.Name, &out.Type, &out.Address, &out.Phone, &out.WorkingHours, &out.Description, &out.IsFree)
+		RETURNING id, name, type, address, phone, working_hours, description, is_free, COALESCE(image_url, '')`,
+		id, s.Name, s.Type, s.Address, s.Phone, s.WorkingHours, s.Description, s.IsFree, s.ImageURL,
+	).Scan(&out.ID, &out.Name, &out.Type, &out.Address, &out.Phone, &out.WorkingHours, &out.Description, &out.IsFree, &out.ImageURL)
 	if err != nil {
 		return nil, err
 	}
@@ -141,21 +141,21 @@ func (db *DB) DeleteMedicalService(ctx context.Context, id uuid.UUID) error {
 
 func (db *DB) CreateGuide(ctx context.Context, g *model.Guide) error {
 	return db.Pool.QueryRow(ctx, `
-		INSERT INTO guides (id, title, category, content, created_at)
-		VALUES ($1, $2, $3, $4, NOW())
+		INSERT INTO guides (id, title, category, content, image_url, created_at)
+		VALUES ($1, $2, $3, $4, $5, NOW())
 		RETURNING created_at`,
-		g.ID, g.Title, g.Category, g.Content,
+		g.ID, g.Title, g.Category, g.Content, g.ImageURL,
 	).Scan(&g.CreatedAt)
 }
 
 func (db *DB) UpdateGuide(ctx context.Context, id uuid.UUID, g *model.Guide) (*model.Guide, error) {
 	out := &model.Guide{}
 	err := db.Pool.QueryRow(ctx, `
-		UPDATE guides SET title = $2, category = $3, content = $4
+		UPDATE guides SET title = $2, category = $3, content = $4, image_url = $5
 		WHERE id = $1
-		RETURNING id, title, category, content, created_at`,
-		id, g.Title, g.Category, g.Content,
-	).Scan(&out.ID, &out.Title, &out.Category, &out.Content, &out.CreatedAt)
+		RETURNING id, title, category, content, COALESCE(image_url, ''), created_at`,
+		id, g.Title, g.Category, g.Content, g.ImageURL,
+	).Scan(&out.ID, &out.Title, &out.Category, &out.Content, &out.ImageURL, &out.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (db *DB) DeleteGuide(ctx context.Context, id uuid.UUID) error {
 // Psychology admin
 
 func (db *DB) GetAllPsychologyRequests(ctx context.Context) ([]model.PsychologyRequest, error) {
-	rows, err := db.Pool.Query(ctx, `SELECT id, user_id, topic, message, preferred_date, status, created_at FROM psychology_requests ORDER BY created_at DESC`)
+	rows, err := db.Pool.Query(ctx, `SELECT id, user_id, topic, message, COALESCE(TO_CHAR(preferred_date, 'YYYY-MM-DD'), ''), status, created_at FROM psychology_requests ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (db *DB) UpdatePsychologyRequestStatus(ctx context.Context, id uuid.UUID, s
 	out := &model.PsychologyRequest{}
 	err := db.Pool.QueryRow(ctx, `
 		UPDATE psychology_requests SET status = $2 WHERE id = $1
-		RETURNING id, user_id, topic, message, preferred_date, status, created_at`,
+		RETURNING id, user_id, topic, message, COALESCE(TO_CHAR(preferred_date, 'YYYY-MM-DD'), ''), status, created_at`,
 		id, status,
 	).Scan(&out.ID, &out.UserID, &out.Topic, &out.Message, &out.PreferredDate, &out.Status, &out.CreatedAt)
 	if err != nil {

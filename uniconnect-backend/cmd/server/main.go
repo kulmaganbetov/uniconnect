@@ -154,6 +154,7 @@ func main() {
 			r.Group(func(r chi.Router) {
 				r.Use(adminOnly)
 				r.Get("/users", adminH.GetAllUsers)
+				r.Post("/users", adminH.CreateUser)
 				r.Put("/users/{id}/role", adminH.UpdateUserRole)
 				r.Delete("/users/{id}", adminH.DeleteUser)
 				r.Get("/roles", adminH.ListRoles)

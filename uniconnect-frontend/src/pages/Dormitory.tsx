@@ -15,6 +15,7 @@ interface Dormitory {
   available_rooms: number;
   price_per_month: number;
   description: string;
+  image_url: string;
   created_at: string;
 }
 
@@ -140,21 +141,32 @@ export default function Dormitory() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {(dormsQuery.data || []).map((dorm) => (
                   <div key={dorm.id} className="card overflow-hidden">
-                    <div className="h-40 bg-gradient-to-br from-navy to-primary flex items-center justify-center">
-                      <svg
-                        className="w-16 h-16 text-white/40"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                        />
-                      </svg>
-                    </div>
+                    {dorm.image_url ? (
+                      <img
+                        src={dorm.image_url}
+                        alt={dorm.name}
+                        className="w-full h-40 object-cover"
+                        onError={(e) =>
+                          (e.currentTarget.style.display = "none")
+                        }
+                      />
+                    ) : (
+                      <div className="h-40 bg-gradient-to-br from-navy to-primary flex items-center justify-center">
+                        <svg
+                          className="w-16 h-16 text-white/40"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                          />
+                        </svg>
+                      </div>
+                    )}
                     <div className="p-6">
                       <h3 className="text-lg font-bold text-navy mb-1">
                         {dorm.name}

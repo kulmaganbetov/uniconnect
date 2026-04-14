@@ -7,7 +7,7 @@ import (
 )
 
 func (db *DB) GetAllPageContents(ctx context.Context) ([]model.PageContent, error) {
-	rows, err := db.Pool.Query(ctx, `SELECT key, title, body, updated_at FROM page_contents ORDER BY key`)
+	rows, err := db.Pool.Query(ctx, `SELECT key, title, body, COALESCE(image_url, ''), updated_at FROM page_contents ORDER BY key`)
 	if err != nil {
 		return nil, err
 	}
@@ -16,7 +16,7 @@ func (db *DB) GetAllPageContents(ctx context.Context) ([]model.PageContent, erro
 	var out []model.PageContent
 	for rows.Next() {
 		var p model.PageContent
-		if err := rows.Scan(&p.Key, &p.Title, &p.Body, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.Key, &p.Title, &p.Body, &p.ImageURL, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -27,8 +27,8 @@ func (db *DB) GetAllPageContents(ctx context.Context) ([]model.PageContent, erro
 func (db *DB) GetPageContent(ctx context.Context, key string) (*model.PageContent, error) {
 	p := &model.PageContent{}
 	err := db.Pool.QueryRow(ctx,
-		`SELECT key, title, body, updated_at FROM page_contents WHERE key = $1`, key,
-	).Scan(&p.Key, &p.Title, &p.Body, &p.UpdatedAt)
+		`SELECT key, title, body, COALESCE(image_url, ''), updated_at FROM page_contents WHERE key = $1`, key,
+	).Scan(&p.Key, &p.Title, &p.Body, &p.ImageURL, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -37,16 +37,16 @@ func (db *DB) GetPageContent(ctx context.Context, key string) (*model.PageConten
 
 // UpsertPageContent inserts or updates a piece of editable copy. Used
 // by the admin "page content" editor.
-func (db *DB) UpsertPageContent(ctx context.Context, key, title, body string) (*model.PageContent, error) {
+func (db *DB) UpsertPageContent(ctx context.Context, key, title, body, imageURL string) (*model.PageContent, error) {
 	p := &model.PageContent{}
 	err := db.Pool.QueryRow(ctx, `
-		INSERT INTO page_contents (key, title, body, updated_at)
-		VALUES ($1, $2, $3, NOW())
+		INSERT INTO page_contents (key, title, body, image_url, updated_at)
+		VALUES ($1, $2, $3, $4, NOW())
 		ON CONFLICT (key) DO UPDATE
-		SET title = EXCLUDED.title, body = EXCLUDED.body, updated_at = NOW()
-		RETURNING key, title, body, updated_at`,
-		key, title, body,
-	).Scan(&p.Key, &p.Title, &p.Body, &p.UpdatedAt)
+		SET title = EXCLUDED.title, body = EXCLUDED.body, image_url = EXCLUDED.image_url, updated_at = NOW()
+		RETURNING key, title, body, COALESCE(image_url, ''), updated_at`,
+		key, title, body, imageURL,
+	).Scan(&p.Key, &p.Title, &p.Body, &p.ImageURL, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
