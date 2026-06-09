@@ -152,6 +152,12 @@ func main() {
 			r.Post("/avatar", profileH.UploadAvatar)
 		})
 
+		// Team task submissions (students)
+		r.Route("/team-tasks", func(r chi.Router) {
+			r.Use(jwtAuth)
+			r.Post("/{id}/submit", taskH.SubmitTeamTask)
+		})
+
 		// Teams & Gamification
 		r.Route("/teams", func(r chi.Router) {
 			r.Get("/", teamH.GetAll)
@@ -236,7 +242,7 @@ func main() {
 				r.Put("/tasks/{id}", taskH.Update)
 				r.Delete("/tasks/{id}", taskH.Delete)
 				r.Post("/tasks/{id}/assign", taskH.Assign)
-				r.Put("/team-tasks/{id}", taskH.CompleteTeamTask)
+				r.Put("/team-tasks/{id}", taskH.ReviewTeamTask)
 				r.Get("/team-tasks", taskH.GetAllTeamTasks)
 			})
 		})

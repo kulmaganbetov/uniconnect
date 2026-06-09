@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
@@ -6,7 +6,7 @@ import Footer from "../components/Footer";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { useToast } from "../components/Toast";
 import { useAuthStore } from "../store/authStore";
-import { apiGet, apiDelete } from "../api/axios";
+import { apiGet, apiDelete, apiPost } from "../api/axios";
 
 interface TeamMemberDetail {
   user_id: string;
@@ -29,6 +29,7 @@ interface TeamTaskDetail {
   description: string;
   xp_reward: number;
   team_name?: string;
+  submission_text: string;
 }
 
 interface TeamActivityEntry {
@@ -146,6 +147,7 @@ export default function TeamDetail() {
   const [section, setSection] = useState<"members" | "tasks" | "activity">(
     "members"
   );
+  const [submittingTask, setSubmittingTask] = useState<TeamTaskDetail | null>(null);
 
   const teamQuery = useQuery({
     queryKey: ["teams", id],
@@ -208,7 +210,7 @@ export default function TeamDetail() {
   const myTeamId = myTeamQuery.data?.id || null;
   const isMyTeam = myTeamId === team.id;
   const inProgressTasks = (team.tasks || []).filter(
-    (t) => t.status === "assigned"
+    (t) => t.status === "assigned" || t.status === "submitted"
   );
   const completedTasks = (team.tasks || []).filter(
     (t) => t.status === "completed"
@@ -429,7 +431,12 @@ export default function TeamDetail() {
                   ) : (
                     <div className="space-y-3">
                       {inProgressTasks.map((task) => (
-                        <TaskCard key={task.id} task={task} />
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          canSubmit={isMyTeam && task.status === "assigned"}
+                          onSubmit={() => setSubmittingTask(task)}
+                        />
                       ))}
                     </div>
                   )}
@@ -508,6 +515,17 @@ export default function TeamDetail() {
         </section>
       </main>
 
+      {submittingTask && (
+        <SubmitTaskModal
+          task={submittingTask}
+          onClose={() => setSubmittingTask(null)}
+          onSuccess={() => {
+            setSubmittingTask(null);
+            queryClient.invalidateQueries({ queryKey: ["teams", id] });
+          }}
+        />
+      )}
+
       <Footer />
     </div>
   );
@@ -555,12 +573,27 @@ function MemberAvatar({
   );
 }
 
-function TaskCard({ task }: { task: TeamTaskDetail }) {
+function TaskCard({
+  task,
+  canSubmit = false,
+  onSubmit,
+}: {
+  task: TeamTaskDetail;
+  canSubmit?: boolean;
+  onSubmit?: () => void;
+}) {
   const isCompleted = task.status === "completed";
+  const isSubmitted = task.status === "submitted";
 
   return (
     <div
-      className={`card p-4 ${isCompleted ? "bg-green-50 border-green-200" : ""}`}
+      className={`card p-4 ${
+        isCompleted
+          ? "bg-green-50 border-green-200"
+          : isSubmitted
+          ? "bg-blue-50 border-blue-200"
+          : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -571,12 +604,22 @@ function TaskCard({ task }: { task: TeamTaskDetail }) {
             </span>
             {isCompleted ? (
               <span className="badge-green text-xs">Completed</span>
+            ) : isSubmitted ? (
+              <span className="text-xs bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded font-semibold">
+                Awaiting Review
+              </span>
             ) : (
               <span className="badge-yellow text-xs">In Progress</span>
             )}
           </div>
           {task.description && (
             <p className="text-sm text-muted line-clamp-2">{task.description}</p>
+          )}
+          {isSubmitted && task.submission_text && (
+            <div className="mt-2 p-2.5 bg-white border border-blue-200 rounded text-sm text-text-dark">
+              <span className="text-xs font-semibold text-muted block mb-1">Your submission:</span>
+              {task.submission_text}
+            </div>
           )}
           <div className="flex items-center gap-4 mt-2 text-xs text-muted flex-wrap">
             <span>Assigned: {formatDate(task.assigned_at)}</span>
@@ -586,6 +629,116 @@ function TaskCard({ task }: { task: TeamTaskDetail }) {
               </span>
             )}
           </div>
+        </div>
+        {canSubmit && (
+          <button
+            onClick={onSubmit}
+            className="btn-primary text-sm flex-shrink-0 self-start"
+          >
+            Submit
+          </button>
+        )}
+        {isSubmitted && (
+          <span className="text-xs text-blue-600 font-semibold flex-shrink-0 self-start mt-1">
+            ⏳ Under review
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SubmitTaskModal({
+  task,
+  onClose,
+  onSuccess,
+}: {
+  task: TeamTaskDetail;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const toast = useToast();
+  const [text, setText] = useState("");
+
+  const submitMutation = useMutation({
+    mutationFn: () =>
+      apiPost<{ status: string }>(`/api/team-tasks/${task.id}/submit`, {
+        submission_text: text,
+      }),
+    onSuccess: () => {
+      toast.success("Task submitted for review!");
+      onSuccess();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (text.trim()) submitMutation.mutate();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 py-8"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-md max-w-lg w-full shadow-2xl border-t-4 border-primary"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 md:p-8">
+          <div className="flex items-start justify-between mb-4 gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-navy">Submit task</h2>
+              <p className="text-sm text-muted mt-1">
+                Describe what your team did to complete{" "}
+                <span className="font-semibold text-text-dark">"{task.title}"</span>.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="text-muted hover:text-primary text-2xl flex-shrink-0"
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+            ⭐ Your team will earn <strong>{task.xp_reward} XP</strong> once the
+            admin approves this submission.
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-semibold text-text-dark mb-2">
+                Submission
+              </label>
+              <textarea
+                required
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={5}
+                placeholder="Describe what your team did, include links, results, or any evidence of completion…"
+                className="input-field resize-none"
+              />
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={onClose}
+                className="btn-secondary flex-1"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={submitMutation.isPending || !text.trim()}
+                className="btn-primary flex-1 disabled:opacity-60"
+              >
+                {submitMutation.isPending ? "Submitting…" : "Submit for review"}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
