@@ -139,7 +139,8 @@ type TabKey =
   | "jobs"
   | "medical"
   | "guides"
-  | "psychology";
+  | "psychology"
+  | "tasks";
 
 interface TabDef {
   key: TabKey;
@@ -170,6 +171,12 @@ const TABS: TabDef[] = [
     label: "Psychology",
     icon: "💬",
     visible: canManagePsychology,
+  },
+  {
+    key: "tasks",
+    label: "Tasks",
+    icon: "🎯",
+    visible: (role) => role === "admin",
   },
 ];
 
@@ -232,6 +239,7 @@ export default function Admin() {
             {active === "medical" && <MedicalTab />}
             {active === "guides" && <GuidesTab />}
             {active === "psychology" && <PsychologyTab />}
+            {active === "tasks" && <TasksTab />}
           </div>
         </section>
       </main>
@@ -1727,6 +1735,444 @@ function PsychologyTab() {
       ))}
       {items.length === 0 && <EmptyState message="No psychology requests." />}
     </div>
+  );
+}
+
+/* ─────────────────── Tasks tab ─────────────────── */
+
+interface TaskItem {
+  id: string;
+  title: string;
+  description: string;
+  xp_reward: number;
+  deadline: string;
+  status: string;
+  created_by: string;
+  created_at: string;
+}
+
+interface TeamTaskAssignmentItem {
+  id: string;
+  team_id: string;
+  task_id: string;
+  status: string;
+  assigned_at: string;
+  completed_at: string;
+  title: string;
+  description: string;
+  xp_reward: number;
+  team_name: string;
+}
+
+interface TeamSummaryItem {
+  id: string;
+  name: string;
+  language: string;
+  language_level: string;
+}
+
+function TasksTab() {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [subView, setSubView] = useState<"tasks" | "assignments">("tasks");
+  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [creatingTask, setCreatingTask] = useState(false);
+  const [assigningTask, setAssigningTask] = useState<TaskItem | null>(null);
+
+  const tasksQuery = useQuery({
+    queryKey: ["admin", "tasks"],
+    queryFn: () => apiGet<TaskItem[]>("/api/admin/tasks"),
+  });
+
+  const assignmentsQuery = useQuery({
+    queryKey: ["admin", "team-tasks"],
+    queryFn: () => apiGet<TeamTaskAssignmentItem[]>("/api/admin/team-tasks"),
+  });
+
+  const createTask = useMutation({
+    mutationFn: (body: Omit<TaskItem, "id" | "created_by" | "created_at">) =>
+      apiPost<TaskItem>("/api/admin/tasks", body),
+    onSuccess: () => {
+      toast.success("Task created");
+      qc.invalidateQueries({ queryKey: ["admin", "tasks"] });
+      setCreatingTask(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateTask = useMutation({
+    mutationFn: (t: TaskItem) => apiPut<TaskItem>(`/api/admin/tasks/${t.id}`, t),
+    onSuccess: () => {
+      toast.success("Task updated");
+      qc.invalidateQueries({ queryKey: ["admin", "tasks"] });
+      setEditingTask(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteTask = useMutation({
+    mutationFn: (id: string) => apiDelete<{ status: string }>(`/api/admin/tasks/${id}`),
+    onSuccess: () => {
+      toast.success("Task deleted");
+      qc.invalidateQueries({ queryKey: ["admin", "tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const markComplete = useMutation({
+    mutationFn: (id: string) =>
+      apiPut<TeamTaskAssignmentItem>(`/api/admin/team-tasks/${id}`, { status: "completed" }),
+    onSuccess: () => {
+      toast.success("Task marked complete");
+      qc.invalidateQueries({ queryKey: ["admin", "team-tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const tasks = tasksQuery.data || [];
+  const assignments = assignmentsQuery.data || [];
+
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setSubView("tasks")}
+          className={`tab-button ${subView === "tasks" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Tasks
+        </button>
+        <button
+          onClick={() => setSubView("assignments")}
+          className={`tab-button ${subView === "assignments" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Assignments
+          {assignments.filter((a) => a.status === "assigned").length > 0 && (
+            <span className="ml-1.5 bg-yellow-100 text-yellow-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+              {assignments.filter((a) => a.status === "assigned").length}
+            </span>
+          )}
+        </button>
+        <div className="flex-1" />
+        {subView === "tasks" && (
+          <button onClick={() => setCreatingTask(true)} className="btn-primary">
+            + Add task
+          </button>
+        )}
+      </div>
+
+      {subView === "tasks" ? (
+        <>
+          {tasksQuery.isLoading ? (
+            <LoadingSpinner label="Loading tasks..." />
+          ) : tasksQuery.isError ? (
+            <ErrorBanner message={(tasksQuery.error as Error).message} />
+          ) : (
+            <div className="space-y-3">
+              {tasks.map((t) => (
+                <div key={t.id} className="card p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 className="font-bold text-navy">{t.title}</h3>
+                        <span className="text-yellow-600 font-bold text-xs bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded">
+                          ⭐ {t.xp_reward} XP
+                        </span>
+                        {t.status === "archived" && (
+                          <span className="badge-red">Archived</span>
+                        )}
+                      </div>
+                      {t.description && (
+                        <p className="text-sm text-muted line-clamp-2">{t.description}</p>
+                      )}
+                      {t.deadline && (
+                        <p className="text-xs text-muted mt-1">
+                          Deadline: {new Date(t.deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setAssigningTask(t)}
+                        className="btn-ghost text-sm"
+                      >
+                        Assign
+                      </button>
+                      <button onClick={() => setEditingTask(t)} className="btn-ghost">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete "${t.title}"?`)) deleteTask.mutate(t.id);
+                        }}
+                        className="btn-danger"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {tasks.length === 0 && <EmptyState message="No tasks yet." />}
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {assignmentsQuery.isLoading ? (
+            <LoadingSpinner label="Loading assignments..." />
+          ) : assignmentsQuery.isError ? (
+            <ErrorBanner message={(assignmentsQuery.error as Error).message} />
+          ) : assignments.length === 0 ? (
+            <EmptyState message="No task assignments yet." />
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-bg-light text-text-dark">
+                    <tr>
+                      <Th>Task</Th>
+                      <Th>Team</Th>
+                      <Th>Status</Th>
+                      <Th>Assigned</Th>
+                      <Th>Completed</Th>
+                      <Th></Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assignments.map((a) => (
+                      <tr key={a.id} className="border-t border-gray-100">
+                        <Td className="font-semibold text-navy">
+                          <div>{a.title}</div>
+                          <div className="text-xs text-yellow-600 font-bold">⭐ {a.xp_reward} XP</div>
+                        </Td>
+                        <Td>{a.team_name || "—"}</Td>
+                        <Td>
+                          {a.status === "completed" ? (
+                            <span className="badge-green">Completed</span>
+                          ) : (
+                            <span className="badge-yellow">Assigned</span>
+                          )}
+                        </Td>
+                        <Td className="text-muted text-xs">
+                          {a.assigned_at
+                            ? new Date(a.assigned_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                            : "—"}
+                        </Td>
+                        <Td className="text-muted text-xs">
+                          {a.completed_at
+                            ? new Date(a.completed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                            : "—"}
+                        </Td>
+                        <Td>
+                          {a.status === "assigned" && (
+                            <button
+                              onClick={() => markComplete.mutate(a.id)}
+                              disabled={markComplete.isPending}
+                              className="btn-ghost text-xs disabled:opacity-50"
+                            >
+                              Mark Complete
+                            </button>
+                          )}
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {creatingTask && (
+        <TaskModal
+          title="New task"
+          onClose={() => setCreatingTask(false)}
+          onSave={(b) => createTask.mutate(b)}
+          saving={createTask.isPending}
+        />
+      )}
+      {editingTask && (
+        <TaskModal
+          title="Edit task"
+          initial={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={(b) => updateTask.mutate({ ...editingTask, ...b })}
+          saving={updateTask.isPending}
+        />
+      )}
+      {assigningTask && (
+        <AssignModal
+          task={assigningTask}
+          onClose={() => setAssigningTask(null)}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ["admin", "team-tasks"] });
+            setAssigningTask(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+interface TaskFormValues {
+  title: string;
+  description: string;
+  xp_reward: number;
+  deadline: string;
+  status: string;
+}
+
+function TaskModal({
+  title,
+  initial,
+  onClose,
+  onSave,
+  saving,
+}: {
+  title: string;
+  initial?: Partial<TaskFormValues>;
+  onClose: () => void;
+  onSave: (v: TaskFormValues) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<TaskFormValues>({
+    title: initial?.title || "",
+    description: initial?.description || "",
+    xp_reward: initial?.xp_reward ?? 10,
+    deadline: initial?.deadline ? initial.deadline.slice(0, 10) : "",
+    status: initial?.status || "active",
+  });
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSave(form);
+        }}
+        className="space-y-3"
+      >
+        <Input
+          label="Title"
+          value={form.title}
+          onChange={(v) => setForm({ ...form, title: v })}
+          required
+        />
+        <Textarea
+          label="Description"
+          value={form.description}
+          onChange={(v) => setForm({ ...form, description: v })}
+        />
+        <NumberInput
+          label="XP Reward"
+          value={form.xp_reward}
+          onChange={(v) => setForm({ ...form, xp_reward: v })}
+        />
+        <div>
+          <label className="block text-xs font-semibold text-text-dark mb-1">
+            Deadline <span className="text-muted font-normal">(optional)</span>
+          </label>
+          <input
+            type="date"
+            value={form.deadline}
+            onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+            className="input-field"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-text-dark mb-1">Status</label>
+          <select
+            value={form.status}
+            onChange={(e) => setForm({ ...form, status: e.target.value })}
+            className="input-field"
+          >
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+        <div className="flex gap-2 pt-3">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving} className="btn-primary flex-1 disabled:opacity-60">
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function AssignModal({
+  task,
+  onClose,
+  onSuccess,
+}: {
+  task: TaskItem;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const toast = useToast();
+  const [selectedTeamId, setSelectedTeamId] = useState("");
+
+  const teamsQuery = useQuery({
+    queryKey: ["teams"],
+    queryFn: () => apiGet<TeamSummaryItem[]>("/api/teams"),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: () =>
+      apiPost<TeamTaskAssignmentItem>(`/api/admin/tasks/${task.id}/assign`, { team_id: selectedTeamId }),
+    onSuccess: () => {
+      toast.success("Task assigned to team");
+      onSuccess();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Modal title={`Assign "${task.title}"`} onClose={onClose}>
+      <div className="space-y-4">
+        <p className="text-sm text-muted">
+          Select a team to assign this task to. The team will earn{" "}
+          <span className="text-yellow-600 font-bold">⭐ {task.xp_reward} XP</span> upon completion.
+        </p>
+        {teamsQuery.isLoading ? (
+          <LoadingSpinner />
+        ) : teamsQuery.isError ? (
+          <ErrorBanner message={(teamsQuery.error as Error).message} />
+        ) : (
+          <div>
+            <label className="block text-xs font-semibold text-text-dark mb-1">Team</label>
+            <select
+              value={selectedTeamId}
+              onChange={(e) => setSelectedTeamId(e.target.value)}
+              className="input-field"
+            >
+              <option value="">— Select a team —</option>
+              {(teamsQuery.data || []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({t.language} {t.language_level})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        <div className="flex gap-2 pt-2">
+          <button type="button" onClick={onClose} className="btn-secondary flex-1">
+            Cancel
+          </button>
+          <button
+            onClick={() => assignMutation.mutate()}
+            disabled={!selectedTeamId || assignMutation.isPending}
+            className="btn-primary flex-1 disabled:opacity-60"
+          >
+            {assignMutation.isPending ? "Assigning..." : "Assign"}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

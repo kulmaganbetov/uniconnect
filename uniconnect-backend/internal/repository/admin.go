@@ -13,9 +13,9 @@ func (db *DB) UpdateUserRole(ctx context.Context, id uuid.UUID, role string) (*m
 	u := &model.User{}
 	err := db.Pool.QueryRow(ctx, `
 		UPDATE users SET role = $2 WHERE id = $1
-		RETURNING id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), created_at`,
+		RETURNING id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), COALESCE(language, ''), COALESCE(language_level, ''), created_at`,
 		id, role,
-	).Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Country, &u.University, &u.Role, &u.AvatarURL, &u.CreatedAt)
+	).Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Country, &u.University, &u.Role, &u.AvatarURL, &u.Language, &u.LanguageLevel, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}

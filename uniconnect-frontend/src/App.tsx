@@ -12,6 +12,8 @@ import Profile from "./pages/Profile";
 import Admin from "./pages/Admin";
 import AIChat from "./pages/AIChat";
 import Emergency from "./pages/Emergency";
+import Teams from "./pages/Teams";
+import TeamDetail from "./pages/TeamDetail";
 import PrivateRoute from "./components/PrivateRoute";
 import { ROLES } from "./lib/roles";
 
@@ -31,6 +33,8 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/guides" element={<Guides />} />
       <Route path="/sos" element={<Emergency />} />
+      <Route path="/teams" element={<Teams />} />
+      <Route path="/teams/:id" element={<TeamDetail />} />
 
       {/* Private routes */}
       <Route

@@ -1,0 +1,2 @@
+ALTER TABLE users DROP COLUMN IF EXISTS language;
+ALTER TABLE users DROP COLUMN IF EXISTS language_level;

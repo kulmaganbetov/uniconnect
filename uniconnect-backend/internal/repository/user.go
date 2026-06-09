@@ -21,10 +21,11 @@ func (db *DB) CreateUser(ctx context.Context, user *model.User) error {
 
 func (db *DB) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {
 	user := &model.User{}
-	query := `SELECT id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), created_at FROM users WHERE email = $1`
+	query := `SELECT id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), COALESCE(language, ''), COALESCE(language_level, ''), created_at FROM users WHERE email = $1`
 	err := db.Pool.QueryRow(ctx, query, email).Scan(
 		&user.ID, &user.Name, &user.Email, &user.PasswordHash,
-		&user.Country, &user.University, &user.Role, &user.AvatarURL, &user.CreatedAt,
+		&user.Country, &user.University, &user.Role, &user.AvatarURL,
+		&user.Language, &user.LanguageLevel, &user.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -34,10 +35,11 @@ func (db *DB) GetUserByEmail(ctx context.Context, email string) (*model.User, er
 
 func (db *DB) GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
 	user := &model.User{}
-	query := `SELECT id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), created_at FROM users WHERE id = $1`
+	query := `SELECT id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), COALESCE(language, ''), COALESCE(language_level, ''), created_at FROM users WHERE id = $1`
 	err := db.Pool.QueryRow(ctx, query, id).Scan(
 		&user.ID, &user.Name, &user.Email, &user.PasswordHash,
-		&user.Country, &user.University, &user.Role, &user.AvatarURL, &user.CreatedAt,
+		&user.Country, &user.University, &user.Role, &user.AvatarURL,
+		&user.Language, &user.LanguageLevel, &user.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -45,15 +47,16 @@ func (db *DB) GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error
 	return user, nil
 }
 
-func (db *DB) UpdateUser(ctx context.Context, id uuid.UUID, name, country, university, avatarURL string) (*model.User, error) {
+func (db *DB) UpdateUser(ctx context.Context, id uuid.UUID, name, country, university, avatarURL, language, languageLevel string) (*model.User, error) {
 	user := &model.User{}
 	query := `
-		UPDATE users SET name = $2, country = $3, university = $4, avatar_url = NULLIF($5, '')
-		WHERE id = $1
-		RETURNING id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), created_at`
-	err := db.Pool.QueryRow(ctx, query, id, name, country, university, avatarURL).Scan(
+		UPDATE users SET name=$2, country=$3, university=$4, avatar_url=NULLIF($5,''), language=$6, language_level=$7
+		WHERE id=$1
+		RETURNING id, name, email, password_hash, country, university, role, COALESCE(avatar_url,''), COALESCE(language,''), COALESCE(language_level,''), created_at`
+	err := db.Pool.QueryRow(ctx, query, id, name, country, university, avatarURL, language, languageLevel).Scan(
 		&user.ID, &user.Name, &user.Email, &user.PasswordHash,
-		&user.Country, &user.University, &user.Role, &user.AvatarURL, &user.CreatedAt,
+		&user.Country, &user.University, &user.Role, &user.AvatarURL,
+		&user.Language, &user.LanguageLevel, &user.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -68,7 +71,7 @@ func (db *DB) UpdateUserPassword(ctx context.Context, id uuid.UUID, newPasswordH
 }
 
 func (db *DB) GetAllUsers(ctx context.Context) ([]model.User, error) {
-	query := `SELECT id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), created_at FROM users ORDER BY created_at DESC`
+	query := `SELECT id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), COALESCE(language, ''), COALESCE(language_level, ''), created_at FROM users ORDER BY created_at DESC`
 	rows, err := db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
@@ -78,7 +81,7 @@ func (db *DB) GetAllUsers(ctx context.Context) ([]model.User, error) {
 	var users []model.User
 	for rows.Next() {
 		var u model.User
-		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Country, &u.University, &u.Role, &u.AvatarURL, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Country, &u.University, &u.Role, &u.AvatarURL, &u.Language, &u.LanguageLevel, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, u)

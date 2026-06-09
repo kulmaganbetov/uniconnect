@@ -11,7 +11,7 @@ type UserRepository interface {
 	CreateUser(ctx context.Context, user *model.User) error
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error)
-	UpdateUser(ctx context.Context, id uuid.UUID, name, country, university, avatarURL string) (*model.User, error)
+	UpdateUser(ctx context.Context, id uuid.UUID, name, country, university, avatarURL, language, languageLevel string) (*model.User, error)
 	UpdateUserPassword(ctx context.Context, id uuid.UUID, newPasswordHash string) error
 	VerifyUserPassword(ctx context.Context, id uuid.UUID, password string) error
 	GetAllUsers(ctx context.Context) ([]model.User, error)
@@ -76,6 +76,35 @@ type PageContentRepository interface {
 	UpsertPageContent(ctx context.Context, key, title, body, imageURL string) (*model.PageContent, error)
 }
 
+type TeamRepository interface {
+	CreateTeam(ctx context.Context, t *model.Team) error
+	GetAllTeams(ctx context.Context) ([]model.TeamSummary, error)
+	GetLeaderboard(ctx context.Context, limit int) ([]model.TeamSummary, error)
+	GetTeamByID(ctx context.Context, id uuid.UUID) (*model.TeamDetail, error)
+	GetUserTeam(ctx context.Context, userID uuid.UUID) (*model.TeamSummary, error)
+	AddTeamMember(ctx context.Context, teamID, userID uuid.UUID, role string) error
+	RemoveTeamMember(ctx context.Context, teamID, userID uuid.UUID) error
+	GetTeamMemberCount(ctx context.Context, teamID uuid.UUID) (int, error)
+	DeleteTeam(ctx context.Context, id uuid.UUID) error
+	PromoteToLeader(ctx context.Context, teamID, userID uuid.UUID) error
+	GetMemberTeam(ctx context.Context, userID uuid.UUID) (*model.TeamSummary, error)
+}
+
+type TaskRepository interface {
+	CreateTask(ctx context.Context, t *model.Task) error
+	GetAllTasks(ctx context.Context) ([]model.Task, error)
+	GetTaskByID(ctx context.Context, id uuid.UUID) (*model.Task, error)
+	UpdateTask(ctx context.Context, id uuid.UUID, t *model.Task) (*model.Task, error)
+	DeleteTask(ctx context.Context, id uuid.UUID) error
+	AssignTaskToTeam(ctx context.Context, teamID, taskID uuid.UUID) (*model.TeamTask, error)
+	CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID) error
+	GetTeamTasks(ctx context.Context, teamID uuid.UUID) ([]model.TeamTaskDetail, error)
+	GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, error)
+	GetTeamTaskByID(ctx context.Context, teamTaskID uuid.UUID) (*model.TeamTask, error)
+	AddTeamXP(ctx context.Context, teamID uuid.UUID, xp int) error
+	LogTeamActivity(ctx context.Context, entry *model.TeamActivityEntry) error
+}
+
 // Compile-time assertions that *DB satisfies every repository interface.
 var (
 	_ UserRepository        = (*DB)(nil)
@@ -85,4 +114,6 @@ var (
 	_ PsychologyRepository  = (*DB)(nil)
 	_ GuideRepository       = (*DB)(nil)
 	_ PageContentRepository = (*DB)(nil)
+	_ TeamRepository        = (*DB)(nil)
+	_ TaskRepository        = (*DB)(nil)
 )
