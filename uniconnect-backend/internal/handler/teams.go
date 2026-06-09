@@ -270,27 +270,79 @@ func (h *TaskHandler) Assign(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, model.APIResponse{Success: true, Data: tt})
 }
 
-// CompleteTeamTask marks a team task as completed and awards XP (admin).
-func (h *TaskHandler) CompleteTeamTask(w http.ResponseWriter, r *http.Request) {
+// SubmitTeamTask allows an authenticated team member to submit a task for review.
+func (h *TaskHandler) SubmitTeamTask(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid team-task id"})
 		return
 	}
 
-	if err := h.svc.CompleteTeamTask(r.Context(), id); err != nil {
+	var req model.SubmitTeamTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+	if req.SubmissionText == "" {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "submission_text is required"})
+		return
+	}
+
+	if err := h.svc.SubmitTeamTask(r.Context(), userID, id, req.SubmissionText); err != nil {
 		if errors.Is(err, service.ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "team task not found"})
 			return
 		}
 		if errors.Is(err, service.ErrInternal) {
-			writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to complete team task"})
+			writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to submit task"})
 			return
 		}
 		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "completed"}})
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "submitted"}})
+}
+
+// ReviewTeamTask lets an admin approve ("completed") or reject ("assigned") a submitted task.
+func (h *TaskHandler) ReviewTeamTask(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid team-task id"})
+		return
+	}
+
+	var req model.ReviewTeamTaskRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+
+	switch req.Status {
+	case "completed":
+		if err := h.svc.CompleteTeamTask(r.Context(), id); err != nil {
+			if errors.Is(err, service.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "team task not found"})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "completed"}})
+	case "assigned":
+		if err := h.svc.RejectTeamTask(r.Context(), id); err != nil {
+			if errors.Is(err, service.ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "team task not found"})
+				return
+			}
+			writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "assigned"}})
+	default:
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "status must be 'completed' (approve) or 'assigned' (reject)"})
+	}
 }
 
 // GetAllTeamTasks returns every team-task assignment (admin).

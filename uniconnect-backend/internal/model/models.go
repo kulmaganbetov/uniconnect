@@ -436,25 +436,27 @@ type Task struct {
 }
 
 type TeamTask struct {
-	ID          uuid.UUID `json:"id"`
-	TeamID      uuid.UUID `json:"team_id"`
-	TaskID      uuid.UUID `json:"task_id"`
-	Status      string    `json:"status"`
-	AssignedAt  time.Time `json:"assigned_at"`
-	CompletedAt string    `json:"completed_at"` // empty or timestamp string
+	ID             uuid.UUID `json:"id"`
+	TeamID         uuid.UUID `json:"team_id"`
+	TaskID         uuid.UUID `json:"task_id"`
+	Status         string    `json:"status"`
+	AssignedAt     time.Time `json:"assigned_at"`
+	CompletedAt    string    `json:"completed_at"` // empty or timestamp string
+	SubmissionText string    `json:"submission_text"`
 }
 
 type TeamTaskDetail struct {
-	ID          uuid.UUID `json:"id"`
-	TeamID      uuid.UUID `json:"team_id"`
-	TaskID      uuid.UUID `json:"task_id"`
-	Status      string    `json:"status"`
-	AssignedAt  time.Time `json:"assigned_at"`
-	CompletedAt string    `json:"completed_at"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	XPReward    int       `json:"xp_reward"`
-	TeamName    string    `json:"team_name,omitempty"`
+	ID             uuid.UUID `json:"id"`
+	TeamID         uuid.UUID `json:"team_id"`
+	TaskID         uuid.UUID `json:"task_id"`
+	Status         string    `json:"status"`
+	AssignedAt     time.Time `json:"assigned_at"`
+	CompletedAt    string    `json:"completed_at"`
+	Title          string    `json:"title"`
+	Description    string    `json:"description"`
+	XPReward       int       `json:"xp_reward"`
+	TeamName       string    `json:"team_name,omitempty"`
+	SubmissionText string    `json:"submission_text"`
 }
 
 type TeamActivityEntry struct {
@@ -487,6 +489,10 @@ type AssignTaskRequest struct {
 	TeamID uuid.UUID `json:"team_id"`
 }
 
-type CompleteTeamTaskRequest struct {
-	// empty body - just marks as complete
+type SubmitTeamTaskRequest struct {
+	SubmissionText string `json:"submission_text"`
+}
+
+type ReviewTeamTaskRequest struct {
+	Status string `json:"status"` // "completed" = approve, "assigned" = reject
 }

@@ -255,8 +255,40 @@ func (s *TaskService) AssignToTeam(ctx context.Context, taskID, teamID uuid.UUID
 	return tt, nil
 }
 
+// SubmitTeamTask allows a team member to submit a task for admin review.
+func (s *TaskService) SubmitTeamTask(ctx context.Context, userID, teamTaskID uuid.UUID, submissionText string) error {
+	tt, err := s.tasks.GetTeamTaskByID(ctx, teamTaskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return ErrInternal
+	}
+
+	// Verify the user is a member of the team that owns this task.
+	memberTeam, err := s.teams.GetMemberTeam(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errors.New("you are not a member of any team")
+		}
+		return ErrInternal
+	}
+	if memberTeam.ID != tt.TeamID {
+		return errors.New("you are not a member of this team's task")
+	}
+
+	switch tt.Status {
+	case "completed":
+		return errors.New("this task is already completed")
+	case "submitted":
+		return errors.New("task already submitted, awaiting admin review")
+	}
+
+	return s.tasks.SubmitTeamTask(ctx, teamTaskID, submissionText)
+}
+
+// CompleteTeamTask approves a submitted task and awards XP (admin only).
 func (s *TaskService) CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
-	// Fetch the team task to get team_id and task_id for the activity log.
 	tt, err := s.tasks.GetTeamTaskByID(ctx, teamTaskID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -268,20 +300,19 @@ func (s *TaskService) CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID
 	if tt.Status == "completed" {
 		return errors.New("task is already completed")
 	}
+	if tt.Status != "submitted" {
+		return errors.New("task must be submitted by the team before it can be approved")
+	}
 
-	// Complete the task and award XP (handled atomically in repo).
 	if err := s.tasks.CompleteTeamTask(ctx, teamTaskID); err != nil {
 		return ErrInternal
 	}
 
-	// Fetch the task to get XP reward for the activity log.
 	task, err := s.tasks.GetTaskByID(ctx, tt.TaskID)
 	if err != nil {
-		// Non-fatal: activity log is best-effort.
-		return nil
+		return nil // activity log is best-effort
 	}
 
-	// Log the activity.
 	entry := &model.TeamActivityEntry{
 		ID:          uuid.New(),
 		TeamID:      tt.TeamID,
@@ -290,8 +321,22 @@ func (s *TaskService) CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID
 		XPGained:    task.XPReward,
 	}
 	_ = s.tasks.LogTeamActivity(ctx, entry)
-
 	return nil
+}
+
+// RejectTeamTask returns a submitted task to assigned status (admin only).
+func (s *TaskService) RejectTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
+	tt, err := s.tasks.GetTeamTaskByID(ctx, teamTaskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return ErrInternal
+	}
+	if tt.Status != "submitted" {
+		return errors.New("can only reject tasks that have been submitted")
+	}
+	return s.tasks.RejectTeamTask(ctx, teamTaskID)
 }
 
 func (s *TaskService) GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, error) {

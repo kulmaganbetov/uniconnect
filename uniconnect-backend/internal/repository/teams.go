@@ -138,7 +138,8 @@ func (db *DB) GetTeamByID(ctx context.Context, id uuid.UUID) (*model.TeamDetail,
 	taskQuery := `
 		SELECT tt.id, tt.team_id, tt.task_id, tt.status, tt.assigned_at,
 		       COALESCE(TO_CHAR(tt.completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
-		       COALESCE(ta.title,''), COALESCE(ta.description,''), COALESCE(ta.xp_reward,0)
+		       COALESCE(ta.title,''), COALESCE(ta.description,''), COALESCE(ta.xp_reward,0),
+		       COALESCE(tt.submission_text,'')
 		FROM team_tasks tt
 		JOIN tasks ta ON ta.id = tt.task_id
 		WHERE tt.team_id = $1
@@ -154,7 +155,7 @@ func (db *DB) GetTeamByID(ctx context.Context, id uuid.UUID) (*model.TeamDetail,
 		var t model.TeamTaskDetail
 		if err := trows.Scan(
 			&t.ID, &t.TeamID, &t.TaskID, &t.Status, &t.AssignedAt, &t.CompletedAt,
-			&t.Title, &t.Description, &t.XPReward,
+			&t.Title, &t.Description, &t.XPReward, &t.SubmissionText,
 		); err != nil {
 			return nil, err
 		}
@@ -412,13 +413,30 @@ func (db *DB) GetTeamTaskByID(ctx context.Context, teamTaskID uuid.UUID) (*model
 	tt := &model.TeamTask{}
 	err := db.Pool.QueryRow(ctx, `
 		SELECT id, team_id, task_id, status, assigned_at,
-		       COALESCE(TO_CHAR(completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), '')
+		       COALESCE(TO_CHAR(completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(submission_text,'')
 		FROM team_tasks WHERE id=$1`, teamTaskID,
-	).Scan(&tt.ID, &tt.TeamID, &tt.TaskID, &tt.Status, &tt.AssignedAt, &tt.CompletedAt)
+	).Scan(&tt.ID, &tt.TeamID, &tt.TaskID, &tt.Status, &tt.AssignedAt, &tt.CompletedAt, &tt.SubmissionText)
 	if err != nil {
 		return nil, err
 	}
 	return tt, nil
+}
+
+func (db *DB) SubmitTeamTask(ctx context.Context, teamTaskID uuid.UUID, submissionText string) error {
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE team_tasks SET status='submitted', submission_text=$2 WHERE id=$1`,
+		teamTaskID, submissionText,
+	)
+	return err
+}
+
+func (db *DB) RejectTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
+	_, err := db.Pool.Exec(ctx,
+		`UPDATE team_tasks SET status='assigned', submission_text=NULL WHERE id=$1`,
+		teamTaskID,
+	)
+	return err
 }
 
 func (db *DB) CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
@@ -447,7 +465,8 @@ func (db *DB) GetTeamTasks(ctx context.Context, teamID uuid.UUID) ([]model.TeamT
 	query := `
 		SELECT tt.id, tt.team_id, tt.task_id, tt.status, tt.assigned_at,
 		       COALESCE(TO_CHAR(tt.completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
-		       COALESCE(ta.title,''), COALESCE(ta.description,''), COALESCE(ta.xp_reward,0)
+		       COALESCE(ta.title,''), COALESCE(ta.description,''), COALESCE(ta.xp_reward,0),
+		       COALESCE(tt.submission_text,'')
 		FROM team_tasks tt
 		JOIN tasks ta ON ta.id = tt.task_id
 		WHERE tt.team_id=$1
@@ -463,7 +482,7 @@ func (db *DB) GetTeamTasks(ctx context.Context, teamID uuid.UUID) ([]model.TeamT
 		var d model.TeamTaskDetail
 		if err := rows.Scan(
 			&d.ID, &d.TeamID, &d.TaskID, &d.Status, &d.AssignedAt, &d.CompletedAt,
-			&d.Title, &d.Description, &d.XPReward,
+			&d.Title, &d.Description, &d.XPReward, &d.SubmissionText,
 		); err != nil {
 			return nil, err
 		}
@@ -480,7 +499,7 @@ func (db *DB) GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, erro
 		SELECT tt.id, tt.team_id, tt.task_id, tt.status, tt.assigned_at,
 		       COALESCE(TO_CHAR(tt.completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
 		       COALESCE(ta.title,''), COALESCE(ta.description,''), COALESCE(ta.xp_reward,0),
-		       COALESCE(t.name,'')
+		       COALESCE(t.name,''), COALESCE(tt.submission_text,'')
 		FROM team_tasks tt
 		JOIN tasks ta ON ta.id = tt.task_id
 		JOIN teams t ON t.id = tt.team_id
@@ -496,7 +515,7 @@ func (db *DB) GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, erro
 		var d model.TeamTaskDetail
 		if err := rows.Scan(
 			&d.ID, &d.TeamID, &d.TaskID, &d.Status, &d.AssignedAt, &d.CompletedAt,
-			&d.Title, &d.Description, &d.XPReward, &d.TeamName,
+			&d.Title, &d.Description, &d.XPReward, &d.TeamName, &d.SubmissionText,
 		); err != nil {
 			return nil, err
 		}

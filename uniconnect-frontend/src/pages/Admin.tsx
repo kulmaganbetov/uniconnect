@@ -1762,6 +1762,7 @@ interface TeamTaskAssignmentItem {
   description: string;
   xp_reward: number;
   team_name: string;
+  submission_text: string;
 }
 
 interface TeamSummaryItem {
@@ -1819,11 +1820,21 @@ function TasksTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const markComplete = useMutation({
+  const approveMutation = useMutation({
     mutationFn: (id: string) =>
-      apiPut<TeamTaskAssignmentItem>(`/api/admin/team-tasks/${id}`, { status: "completed" }),
+      apiPut<{ status: string }>(`/api/admin/team-tasks/${id}`, { status: "completed" }),
     onSuccess: () => {
-      toast.success("Task marked complete");
+      toast.success("Task approved — XP awarded!");
+      qc.invalidateQueries({ queryKey: ["admin", "team-tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiPut<{ status: string }>(`/api/admin/team-tasks/${id}`, { status: "assigned" }),
+    onSuccess: () => {
+      toast.success("Submission rejected — team can resubmit.");
       qc.invalidateQueries({ queryKey: ["admin", "team-tasks"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1846,9 +1857,9 @@ function TasksTab() {
           className={`tab-button ${subView === "assignments" ? "tab-button-active" : "tab-button-inactive"}`}
         >
           Assignments
-          {assignments.filter((a) => a.status === "assigned").length > 0 && (
-            <span className="ml-1.5 bg-yellow-100 text-yellow-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
-              {assignments.filter((a) => a.status === "assigned").length}
+          {assignments.filter((a) => a.status === "submitted").length > 0 && (
+            <span className="ml-1.5 bg-blue-100 text-blue-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+              {assignments.filter((a) => a.status === "submitted").length} pending
             </span>
           )}
         </button>
@@ -1925,60 +1936,78 @@ function TasksTab() {
           ) : assignments.length === 0 ? (
             <EmptyState message="No task assignments yet." />
           ) : (
-            <div className="card overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-bg-light text-text-dark">
-                    <tr>
-                      <Th>Task</Th>
-                      <Th>Team</Th>
-                      <Th>Status</Th>
-                      <Th>Assigned</Th>
-                      <Th>Completed</Th>
-                      <Th></Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assignments.map((a) => (
-                      <tr key={a.id} className="border-t border-gray-100">
-                        <Td className="font-semibold text-navy">
-                          <div>{a.title}</div>
-                          <div className="text-xs text-yellow-600 font-bold">⭐ {a.xp_reward} XP</div>
-                        </Td>
-                        <Td>{a.team_name || "—"}</Td>
-                        <Td>
-                          {a.status === "completed" ? (
-                            <span className="badge-green">Completed</span>
-                          ) : (
-                            <span className="badge-yellow">Assigned</span>
-                          )}
-                        </Td>
-                        <Td className="text-muted text-xs">
-                          {a.assigned_at
-                            ? new Date(a.assigned_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-                            : "—"}
-                        </Td>
-                        <Td className="text-muted text-xs">
-                          {a.completed_at
-                            ? new Date(a.completed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-                            : "—"}
-                        </Td>
-                        <Td>
-                          {a.status === "assigned" && (
-                            <button
-                              onClick={() => markComplete.mutate(a.id)}
-                              disabled={markComplete.isPending}
-                              className="btn-ghost text-xs disabled:opacity-50"
-                            >
-                              Mark Complete
-                            </button>
-                          )}
-                        </Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="space-y-3">
+              {assignments.map((a) => (
+                <div
+                  key={a.id}
+                  className={`card p-5 ${
+                    a.status === "submitted"
+                      ? "border-blue-300 bg-blue-50"
+                      : a.status === "completed"
+                      ? "border-green-200 bg-green-50"
+                      : ""
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="font-bold text-navy">{a.title}</span>
+                        <span className="text-xs text-yellow-600 font-bold bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded">
+                          ⭐ {a.xp_reward} XP
+                        </span>
+                        {a.status === "completed" ? (
+                          <span className="badge-green">Completed</span>
+                        ) : a.status === "submitted" ? (
+                          <span className="text-xs bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded font-semibold">
+                            Submitted — Awaiting Review
+                          </span>
+                        ) : (
+                          <span className="badge-yellow">Assigned</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted">
+                        Team: <span className="font-semibold text-text-dark">{a.team_name || "—"}</span>
+                        <span className="mx-2 text-gray-300">|</span>
+                        Assigned:{" "}
+                        {a.assigned_at
+                          ? new Date(a.assigned_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                          : "—"}
+                        {a.completed_at && (
+                          <>
+                            <span className="mx-2 text-gray-300">|</span>
+                            Completed:{" "}
+                            {new Date(a.completed_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                          </>
+                        )}
+                      </p>
+                      {a.status === "submitted" && a.submission_text && (
+                        <div className="mt-3 p-3 bg-white border border-blue-200 rounded text-sm text-text-dark">
+                          <span className="text-xs font-semibold text-muted block mb-1">Team submission:</span>
+                          <p className="whitespace-pre-wrap">{a.submission_text}</p>
+                        </div>
+                      )}
+                    </div>
+                    {a.status === "submitted" && (
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button
+                          onClick={() => rejectMutation.mutate(a.id)}
+                          disabled={rejectMutation.isPending || approveMutation.isPending}
+                          className="btn-danger text-sm disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => approveMutation.mutate(a.id)}
+                          disabled={approveMutation.isPending || rejectMutation.isPending}
+                          className="btn-primary text-sm disabled:opacity-50"
+                        >
+                          Approve
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </>

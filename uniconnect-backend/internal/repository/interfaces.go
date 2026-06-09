@@ -98,7 +98,9 @@ type TaskRepository interface {
 	UpdateTask(ctx context.Context, id uuid.UUID, t *model.Task) (*model.Task, error)
 	DeleteTask(ctx context.Context, id uuid.UUID) error
 	AssignTaskToTeam(ctx context.Context, teamID, taskID uuid.UUID) (*model.TeamTask, error)
+	SubmitTeamTask(ctx context.Context, teamTaskID uuid.UUID, submissionText string) error
 	CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID) error
+	RejectTeamTask(ctx context.Context, teamTaskID uuid.UUID) error
 	GetTeamTasks(ctx context.Context, teamID uuid.UUID) ([]model.TeamTaskDetail, error)
 	GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, error)
 	GetTeamTaskByID(ctx context.Context, teamTaskID uuid.UUID) (*model.TeamTask, error)
