@@ -149,6 +149,7 @@ func main() {
 			r.Get("/", profileH.GetProfile)
 			r.Put("/", profileH.UpdateProfile)
 			r.Put("/password", profileH.ChangePassword)
+			r.Post("/avatar", profileH.UploadAvatar)
 		})
 
 		// Teams & Gamification
@@ -240,6 +241,9 @@ func main() {
 			})
 		})
 	})
+
+	// Serve uploaded files (avatars, etc.)
+	r.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir("./uploads"))))
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

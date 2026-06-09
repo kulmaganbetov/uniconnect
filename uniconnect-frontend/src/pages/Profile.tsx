@@ -1,9 +1,9 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import LoadingSpinner from "../components/LoadingSpinner";
-import { apiGet, apiPut } from "../api/axios";
+import { apiGet, apiPostFormData, apiPut } from "../api/axios";
 import { useAuthStore, User } from "../store/authStore";
 
 export default function Profile() {
@@ -20,6 +20,9 @@ export default function Profile() {
     language_level: "",
   });
   const [saved, setSaved] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState("");
 
   // Password change state
   const [changingPwd, setChangingPwd] = useState(false);
@@ -58,6 +61,24 @@ export default function Profile() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
+  });
+
+  const uploadAvatarMutation = useMutation({
+    mutationFn: (file: File) => {
+      const fd = new FormData();
+      fd.append("avatar", file);
+      return apiPostFormData<{ avatar_url: string }>("/api/profile/avatar", fd);
+    },
+    onSuccess: ({ avatar_url }) => {
+      setUploadError("");
+      setForm((f) => ({ ...f, avatar_url }));
+      queryClient.setQueryData(["profile"], (old: User | undefined) =>
+        old ? { ...old, avatar_url } : old
+      );
+      const cur = useAuthStore.getState().user;
+      if (cur) setUser({ ...cur, avatar_url });
+    },
+    onError: (e: Error) => setUploadError(e.message || "Upload failed"),
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -137,19 +158,59 @@ export default function Profile() {
                 <div className="card p-8 mb-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
                     <div className="flex-shrink-0">
-                      {profile.avatar_url ? (
-                        <img
-                          src={profile.avatar_url}
-                          alt={profile.name}
-                          className="w-20 h-20 rounded-full object-cover border-2 border-primary"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-3xl font-extrabold">
-                          {profile.name?.charAt(0).toUpperCase() || "U"}
-                        </div>
+                      {/* Clickable avatar — always opens file picker */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadError("");
+                          fileInputRef.current?.click();
+                        }}
+                        disabled={uploadAvatarMutation.isPending}
+                        className="relative group w-20 h-20 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                        title="Click to upload a new photo"
+                      >
+                        {uploadAvatarMutation.isPending ? (
+                          <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
+                            <svg className="animate-spin w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                          </div>
+                        ) : profile.avatar_url ? (
+                          <img
+                            src={profile.avatar_url}
+                            alt={profile.name}
+                            className="w-20 h-20 rounded-full object-cover border-2 border-primary"
+                            onError={(e) => { e.currentTarget.style.display = "none"; }}
+                          />
+                        ) : (
+                          <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-3xl font-extrabold">
+                            {profile.name?.charAt(0).toUpperCase() || "U"}
+                          </div>
+                        )}
+                        {/* hover overlay */}
+                        {!uploadAvatarMutation.isPending && (
+                          <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          </div>
+                        )}
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) uploadAvatarMutation.mutate(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      {uploadError && (
+                        <p className="text-xs text-red-600 mt-1 max-w-[80px] text-center">{uploadError}</p>
                       )}
                     </div>
                     <div className="flex-1">
@@ -220,28 +281,6 @@ export default function Profile() {
                           onChange={(e) => setForm({ ...form, university: e.target.value })}
                           className="input-field"
                         />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-semibold text-text-dark mb-2">
-                          Avatar URL{" "}
-                          <span className="text-muted font-normal">(optional)</span>
-                        </label>
-                        <input
-                          type="url"
-                          value={form.avatar_url}
-                          onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
-                          className="input-field"
-                          placeholder="https://example.com/photo.jpg"
-                        />
-                        {form.avatar_url && (
-                          <img
-                            src={form.avatar_url}
-                            alt="preview"
-                            className="mt-2 w-16 h-16 rounded-full object-cover border border-gray-200"
-                            onError={(e) => (e.currentTarget.style.display = "none")}
-                          />
-                        )}
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
