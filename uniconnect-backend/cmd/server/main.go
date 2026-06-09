@@ -144,6 +144,7 @@ func main() {
 			r.Use(jwtAuth)
 			r.Get("/", profileH.GetProfile)
 			r.Put("/", profileH.UpdateProfile)
+			r.Put("/password", profileH.ChangePassword)
 		})
 
 		// Admin & staff
@@ -183,6 +184,7 @@ func main() {
 				r.Put("/jobs/{id}", jobH.Update)
 				r.Delete("/jobs/{id}", jobH.Delete)
 				r.Get("/job-applications", jobH.AllApplications)
+				r.Put("/job-applications/{id}", jobH.UpdateApplicationStatus)
 			})
 
 			// Guide management — admin or teacher
@@ -199,6 +201,8 @@ func main() {
 				r.Post("/medical", medH.Create)
 				r.Put("/medical/{id}", medH.Update)
 				r.Delete("/medical/{id}", medH.Delete)
+				r.Get("/medical-appointments", medH.GetAllAppointments)
+				r.Put("/medical-appointments/{id}", medH.UpdateAppointmentStatus)
 			})
 
 			// Psychology counsellor — admin or teacher

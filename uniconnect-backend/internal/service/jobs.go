@@ -44,8 +44,12 @@ func (s *JobService) GetMyApplications(ctx context.Context, userID uuid.UUID) ([
 
 // Manager/admin operations
 
-func (s *JobService) GetAllApplications(ctx context.Context) ([]model.JobApplication, error) {
+func (s *JobService) GetAllApplications(ctx context.Context) ([]model.JobApplicationDetail, error) {
 	return s.repo.GetAllJobApplications(ctx)
+}
+
+func (s *JobService) UpdateApplicationStatus(ctx context.Context, id uuid.UUID, status string) (*model.JobApplicationDetail, error) {
+	return s.repo.UpdateJobApplicationStatus(ctx, id, status)
 }
 
 func (s *JobService) Create(ctx context.Context, req model.JobUpsertRequest) (*model.Job, error) {

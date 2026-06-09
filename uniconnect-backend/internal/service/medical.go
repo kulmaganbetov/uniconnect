@@ -44,6 +44,14 @@ func (s *MedicalService) GetMyAppointments(ctx context.Context, userID uuid.UUID
 	return s.repo.GetUserMedicalAppointments(ctx, userID)
 }
 
+func (s *MedicalService) GetAllAppointments(ctx context.Context) ([]model.MedicalAppointmentDetail, error) {
+	return s.repo.GetAllMedicalAppointments(ctx)
+}
+
+func (s *MedicalService) UpdateAppointmentStatus(ctx context.Context, id uuid.UUID, status string) (*model.MedicalAppointmentDetail, error) {
+	return s.repo.UpdateMedicalAppointmentStatus(ctx, id, status)
+}
+
 // Admin operations
 
 func (s *MedicalService) Create(ctx context.Context, req model.MedicalUpsertRequest) (*model.MedicalService, error) {

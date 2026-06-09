@@ -13,9 +13,9 @@ func (db *DB) UpdateUserRole(ctx context.Context, id uuid.UUID, role string) (*m
 	u := &model.User{}
 	err := db.Pool.QueryRow(ctx, `
 		UPDATE users SET role = $2 WHERE id = $1
-		RETURNING id, name, email, password_hash, country, university, role, created_at`,
+		RETURNING id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), created_at`,
 		id, role,
-	).Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Country, &u.University, &u.Role, &u.CreatedAt)
+	).Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Country, &u.University, &u.Role, &u.AvatarURL, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -31,10 +31,10 @@ func (db *DB) DeleteUser(ctx context.Context, id uuid.UUID) error {
 
 func (db *DB) CreateDormitory(ctx context.Context, d *model.Dormitory) error {
 	return db.Pool.QueryRow(ctx, `
-		INSERT INTO dormitories (id, name, address, total_rooms, available_rooms, price_per_month, description, image_url, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+		INSERT INTO dormitories (id, name, address, total_rooms, available_rooms, single_rooms, double_rooms, price_per_month, description, image_url, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
 		RETURNING created_at`,
-		d.ID, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.PricePerMonth, d.Description, d.ImageURL,
+		d.ID, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.SingleRooms, d.DoubleRooms, d.PricePerMonth, d.Description, d.ImageURL,
 	).Scan(&d.CreatedAt)
 }
 
@@ -42,11 +42,11 @@ func (db *DB) UpdateDormitory(ctx context.Context, id uuid.UUID, d *model.Dormit
 	out := &model.Dormitory{}
 	err := db.Pool.QueryRow(ctx, `
 		UPDATE dormitories
-		SET name = $2, address = $3, total_rooms = $4, available_rooms = $5, price_per_month = $6, description = $7, image_url = $8
+		SET name = $2, address = $3, total_rooms = $4, available_rooms = $5, single_rooms = $6, double_rooms = $7, price_per_month = $8, description = $9, image_url = $10
 		WHERE id = $1
-		RETURNING id, name, address, total_rooms, available_rooms, price_per_month, description, COALESCE(image_url, ''), created_at`,
-		id, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.PricePerMonth, d.Description, d.ImageURL,
-	).Scan(&out.ID, &out.Name, &out.Address, &out.TotalRooms, &out.AvailableRooms, &out.PricePerMonth, &out.Description, &out.ImageURL, &out.CreatedAt)
+		RETURNING id, name, address, total_rooms, available_rooms, single_rooms, double_rooms, price_per_month, description, COALESCE(image_url, ''), created_at`,
+		id, d.Name, d.Address, d.TotalRooms, d.AvailableRooms, d.SingleRooms, d.DoubleRooms, d.PricePerMonth, d.Description, d.ImageURL,
+	).Scan(&out.ID, &out.Name, &out.Address, &out.TotalRooms, &out.AvailableRooms, &out.SingleRooms, &out.DoubleRooms, &out.PricePerMonth, &out.Description, &out.ImageURL, &out.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -89,21 +89,46 @@ func (db *DB) DeleteJob(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-func (db *DB) GetAllJobApplications(ctx context.Context) ([]model.JobApplication, error) {
-	rows, err := db.Pool.Query(ctx, `SELECT id, user_id, job_id, status, created_at FROM job_applications ORDER BY created_at DESC`)
+func (db *DB) GetAllJobApplications(ctx context.Context) ([]model.JobApplicationDetail, error) {
+	query := `
+		SELECT ja.id, ja.user_id, ja.job_id, ja.status, ja.created_at,
+		       COALESCE(j.title, '') AS job_title,
+		       COALESCE(j.company, '') AS company,
+		       COALESCE(u.name, '') AS user_name,
+		       COALESCE(u.email, '') AS user_email
+		FROM job_applications ja
+		LEFT JOIN jobs j ON j.id = ja.job_id
+		LEFT JOIN users u ON u.id = ja.user_id
+		ORDER BY ja.created_at DESC`
+	rows, err := db.Pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var apps []model.JobApplication
+	var apps []model.JobApplicationDetail
 	for rows.Next() {
-		var a model.JobApplication
-		if err := rows.Scan(&a.ID, &a.UserID, &a.JobID, &a.Status, &a.CreatedAt); err != nil {
+		var a model.JobApplicationDetail
+		if err := rows.Scan(&a.ID, &a.UserID, &a.JobID, &a.Status, &a.CreatedAt,
+			&a.JobTitle, &a.Company, &a.UserName, &a.UserEmail); err != nil {
 			return nil, err
 		}
 		apps = append(apps, a)
 	}
 	return apps, nil
+}
+
+func (db *DB) UpdateJobApplicationStatus(ctx context.Context, id uuid.UUID, status string) (*model.JobApplicationDetail, error) {
+	app := &model.JobApplicationDetail{}
+	query := `
+		UPDATE job_applications SET status = $2 WHERE id = $1
+		RETURNING id, user_id, job_id, status, created_at`
+	err := db.Pool.QueryRow(ctx, query, id, status).Scan(
+		&app.ID, &app.UserID, &app.JobID, &app.Status, &app.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return app, nil
 }
 
 // Medical admin CRUD
@@ -135,6 +160,53 @@ func (db *DB) UpdateMedicalService(ctx context.Context, id uuid.UUID, s *model.M
 func (db *DB) DeleteMedicalService(ctx context.Context, id uuid.UUID) error {
 	_, err := db.Pool.Exec(ctx, `DELETE FROM medical_services WHERE id = $1`, id)
 	return err
+}
+
+func (db *DB) GetAllMedicalAppointments(ctx context.Context) ([]model.MedicalAppointmentDetail, error) {
+	query := `
+		SELECT ma.id, ma.user_id, ma.service_id,
+		       COALESCE(TO_CHAR(ma.date, 'YYYY-MM-DD'), ''),
+		       COALESCE(TO_CHAR(ma.time, 'HH24:MI'), ''),
+		       ma.status, ma.created_at,
+		       COALESCE(ms.name, '') AS service_name,
+		       COALESCE(u.name, '') AS user_name,
+		       COALESCE(u.email, '') AS user_email
+		FROM medical_appointments ma
+		LEFT JOIN medical_services ms ON ms.id = ma.service_id
+		LEFT JOIN users u ON u.id = ma.user_id
+		ORDER BY ma.created_at DESC`
+	rows, err := db.Pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var apps []model.MedicalAppointmentDetail
+	for rows.Next() {
+		var a model.MedicalAppointmentDetail
+		if err := rows.Scan(&a.ID, &a.UserID, &a.ServiceID, &a.Date, &a.Time, &a.Status, &a.CreatedAt,
+			&a.ServiceName, &a.UserName, &a.UserEmail); err != nil {
+			return nil, err
+		}
+		apps = append(apps, a)
+	}
+	return apps, nil
+}
+
+func (db *DB) UpdateMedicalAppointmentStatus(ctx context.Context, id uuid.UUID, status string) (*model.MedicalAppointmentDetail, error) {
+	app := &model.MedicalAppointmentDetail{}
+	query := `
+		UPDATE medical_appointments SET status = $2 WHERE id = $1
+		RETURNING id, user_id, service_id,
+		          COALESCE(TO_CHAR(date, 'YYYY-MM-DD'), ''),
+		          COALESCE(TO_CHAR(time, 'HH24:MI'), ''),
+		          status, created_at`
+	err := db.Pool.QueryRow(ctx, query, id, status).Scan(
+		&app.ID, &app.UserID, &app.ServiceID, &app.Date, &app.Time, &app.Status, &app.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return app, nil
 }
 
 // Guide admin CRUD

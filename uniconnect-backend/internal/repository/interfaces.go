@@ -7,16 +7,13 @@ import (
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
 )
 
-// These interfaces describe the persistence contract that each domain
-// service depends on. Services should be constructed with the interface
-// type, not *DB, so they can be unit tested with in-memory fakes.
-// The concrete *DB type satisfies every interface implicitly.
-
 type UserRepository interface {
 	CreateUser(ctx context.Context, user *model.User) error
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error)
-	UpdateUser(ctx context.Context, id uuid.UUID, name, country, university string) (*model.User, error)
+	UpdateUser(ctx context.Context, id uuid.UUID, name, country, university, avatarURL string) (*model.User, error)
+	UpdateUserPassword(ctx context.Context, id uuid.UUID, newPasswordHash string) error
+	VerifyUserPassword(ctx context.Context, id uuid.UUID, password string) error
 	GetAllUsers(ctx context.Context) ([]model.User, error)
 	UpdateUserRole(ctx context.Context, id uuid.UUID, role string) (*model.User, error)
 	DeleteUser(ctx context.Context, id uuid.UUID) error
@@ -42,6 +39,8 @@ type MedicalRepository interface {
 	DeleteMedicalService(ctx context.Context, id uuid.UUID) error
 	CreateMedicalAppointment(ctx context.Context, app *model.MedicalAppointment) error
 	GetUserMedicalAppointments(ctx context.Context, userID uuid.UUID) ([]model.MedicalAppointment, error)
+	GetAllMedicalAppointments(ctx context.Context) ([]model.MedicalAppointmentDetail, error)
+	UpdateMedicalAppointmentStatus(ctx context.Context, id uuid.UUID, status string) (*model.MedicalAppointmentDetail, error)
 }
 
 type JobRepository interface {
@@ -52,7 +51,8 @@ type JobRepository interface {
 	DeleteJob(ctx context.Context, id uuid.UUID) error
 	CreateJobApplication(ctx context.Context, app *model.JobApplication) error
 	GetUserJobApplications(ctx context.Context, userID uuid.UUID) ([]model.JobApplication, error)
-	GetAllJobApplications(ctx context.Context) ([]model.JobApplication, error)
+	GetAllJobApplications(ctx context.Context) ([]model.JobApplicationDetail, error)
+	UpdateJobApplicationStatus(ctx context.Context, id uuid.UUID, status string) (*model.JobApplicationDetail, error)
 }
 
 type PsychologyRepository interface {

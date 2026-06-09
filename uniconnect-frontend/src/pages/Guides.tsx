@@ -23,8 +23,11 @@ const categories = [
   { key: "emergency", label: "Emergency", icon: "🚨" },
 ];
 
+type SortKey = "title_asc" | "title_desc" | "newest";
+
 export default function Guides() {
   const [category, setCategory] = useState("");
+  const [sort, setSort] = useState<SortKey>("title_asc");
   const [selected, setSelected] = useState<Guide | null>(null);
 
   const guidesQuery = useQuery({
@@ -33,6 +36,12 @@ export default function Guides() {
       apiGet<Guide[]>(
         category ? `/api/guides?category=${category}` : "/api/guides"
       ),
+  });
+
+  const sortedGuides = (guidesQuery.data || []).slice().sort((a, b) => {
+    if (sort === "title_asc") return a.title.localeCompare(b.title);
+    if (sort === "title_desc") return b.title.localeCompare(a.title);
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
   return (
@@ -55,24 +64,35 @@ export default function Guides() {
           </div>
         </section>
 
-        {/* Category filter */}
+        {/* Category filter & sort */}
         <section className="bg-white border-b border-gray-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat.key}
-                  onClick={() => setCategory(cat.key)}
-                  className={`inline-flex items-center gap-2 px-5 py-2 rounded-full font-semibold text-sm transition-colors ${
-                    category === cat.key
-                      ? "bg-primary text-white"
-                      : "bg-bg-light text-text-dark hover:bg-gray-200"
-                  }`}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.label}</span>
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-2 flex-1">
+                {categories.map((cat) => (
+                  <button
+                    key={cat.key}
+                    onClick={() => setCategory(cat.key)}
+                    className={`inline-flex items-center gap-2 px-5 py-2 rounded-full font-semibold text-sm transition-colors ${
+                      category === cat.key
+                        ? "bg-primary text-white"
+                        : "bg-bg-light text-text-dark hover:bg-gray-200"
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span>{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="border border-gray-300 rounded-full px-4 py-2 text-sm bg-white text-text-dark"
+              >
+                <option value="title_asc">A → Z</option>
+                <option value="title_desc">Z → A</option>
+                <option value="newest">Newest first</option>
+              </select>
             </div>
           </div>
         </section>
@@ -87,13 +107,13 @@ export default function Guides() {
                 {(guidesQuery.error as Error)?.message ||
                   "Failed to load guides"}
               </div>
-            ) : (guidesQuery.data || []).length === 0 ? (
+            ) : sortedGuides.length === 0 ? (
               <div className="card p-8 text-center text-muted">
                 No guides in this category yet.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {(guidesQuery.data || []).map((guide) => {
+                {sortedGuides.map((guide) => {
                   const cat =
                     categories.find((c) => c.key === guide.category) ||
                     categories[0];
