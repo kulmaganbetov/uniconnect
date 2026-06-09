@@ -48,6 +48,8 @@ func main() {
 	adminSvc := service.NewAdminService(db)
 	pageSvc := service.NewPageContentService(db)
 	aiSvc := service.NewAIService(cfg.OpenAIAPIKey, cfg.OpenAIModel)
+	teamSvc := service.NewTeamService(db, db)
+	taskSvc := service.NewTaskService(db, db)
 
 	// Handlers
 	authH := handler.NewAuthHandler(authSvc)
@@ -60,6 +62,8 @@ func main() {
 	adminH := handler.NewAdminHandler(adminSvc)
 	pageH := handler.NewPageContentHandler(pageSvc)
 	aiH := handler.NewAIHandler(aiSvc)
+	teamH := handler.NewTeamHandler(teamSvc)
+	taskH := handler.NewTaskHandler(taskSvc)
 
 	// Router
 	r := chi.NewRouter()
@@ -147,6 +151,17 @@ func main() {
 			r.Put("/password", profileH.ChangePassword)
 		})
 
+		// Teams & Gamification
+		r.Route("/teams", func(r chi.Router) {
+			r.Get("/", teamH.GetAll)
+			r.Get("/leaderboard", teamH.GetLeaderboard)
+			r.With(jwtAuth).Get("/my", teamH.MyTeam)
+			r.Get("/{id}", teamH.GetByID)
+			r.With(jwtAuth).Post("/", teamH.Create)
+			r.With(jwtAuth).Post("/{id}/join", teamH.Join)
+			r.With(jwtAuth).Delete("/{id}/leave", teamH.Leave)
+		})
+
 		// Admin & staff
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(jwtAuth)
@@ -210,6 +225,18 @@ func main() {
 				r.Use(canManagePsychology)
 				r.Get("/psychology-requests", psyH.AllRequests)
 				r.Put("/psychology-requests/{id}", psyH.UpdateStatus)
+			})
+
+			// Tasks & team-task management — admin only
+			r.Group(func(r chi.Router) {
+				r.Use(adminOnly)
+				r.Get("/tasks", taskH.GetAll)
+				r.Post("/tasks", taskH.Create)
+				r.Put("/tasks/{id}", taskH.Update)
+				r.Delete("/tasks/{id}", taskH.Delete)
+				r.Post("/tasks/{id}/assign", taskH.Assign)
+				r.Put("/team-tasks/{id}", taskH.CompleteTeamTask)
+				r.Get("/team-tasks", taskH.GetAllTeamTasks)
 			})
 		})
 	})

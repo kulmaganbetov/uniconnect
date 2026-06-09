@@ -34,7 +34,7 @@ func (s *ProfileService) GetProfile(ctx context.Context, userID uuid.UUID) (mode
 }
 
 func (s *ProfileService) UpdateProfile(ctx context.Context, userID uuid.UUID, req model.UpdateProfileRequest) (model.UserResponse, error) {
-	user, err := s.users.UpdateUser(ctx, userID, req.Name, req.Country, req.University, req.AvatarURL)
+	user, err := s.users.UpdateUser(ctx, userID, req.Name, req.Country, req.University, req.AvatarURL, req.Language, req.LanguageLevel)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.UserResponse{}, ErrNotFound

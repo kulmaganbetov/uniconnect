@@ -17,6 +17,7 @@ const navLinks: NavLinkItem[] = [
   { to: "/jobs", label: "Jobs", auth: true },
   { to: "/psychology", label: "Psychology", auth: true },
   { to: "/guides", label: "Guides", auth: false },
+  { to: "/teams", label: "Teams", auth: false },
   { to: "/ai", label: "AI Consultant", auth: true },
   { to: "/sos", label: "SOS", auth: false },
 ];

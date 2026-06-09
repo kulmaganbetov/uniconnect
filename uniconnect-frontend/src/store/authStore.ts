@@ -9,6 +9,8 @@ export interface User {
   role: string;
   avatar_url?: string;
   created_at?: string;
+  language?: string;
+  language_level?: string;
 }
 
 interface AuthState {

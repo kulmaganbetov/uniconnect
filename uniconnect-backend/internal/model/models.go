@@ -7,29 +7,33 @@ import (
 )
 
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	Country      string    `json:"country"`
-	University   string    `json:"university"`
-	Role         string    `json:"role"`
-	AvatarURL    string    `json:"avatar_url"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	PasswordHash  string    `json:"-"`
+	Country       string    `json:"country"`
+	University    string    `json:"university"`
+	Role          string    `json:"role"`
+	AvatarURL     string    `json:"avatar_url"`
+	Language      string    `json:"language"`
+	LanguageLevel string    `json:"language_level"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // UserResponse is the public representation of a user. It intentionally
 // omits PasswordHash and any other sensitive fields so callers cannot
 // accidentally leak credentials in API responses.
 type UserResponse struct {
-	ID         uuid.UUID `json:"id"`
-	Name       string    `json:"name"`
-	Email      string    `json:"email"`
-	Country    string    `json:"country"`
-	University string    `json:"university"`
-	Role       string    `json:"role"`
-	AvatarURL  string    `json:"avatar_url"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	Email         string    `json:"email"`
+	Country       string    `json:"country"`
+	University    string    `json:"university"`
+	Role          string    `json:"role"`
+	AvatarURL     string    `json:"avatar_url"`
+	Language      string    `json:"language"`
+	LanguageLevel string    `json:"language_level"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 // SanitizeUser strips sensitive fields from a User and returns the
@@ -40,14 +44,16 @@ func SanitizeUser(u *User) UserResponse {
 		return UserResponse{}
 	}
 	return UserResponse{
-		ID:         u.ID,
-		Name:       u.Name,
-		Email:      u.Email,
-		Country:    u.Country,
-		University: u.University,
-		Role:       u.Role,
-		AvatarURL:  u.AvatarURL,
-		CreatedAt:  u.CreatedAt,
+		ID:            u.ID,
+		Name:          u.Name,
+		Email:         u.Email,
+		Country:       u.Country,
+		University:    u.University,
+		Role:          u.Role,
+		AvatarURL:     u.AvatarURL,
+		Language:      u.Language,
+		LanguageLevel: u.LanguageLevel,
+		CreatedAt:     u.CreatedAt,
 	}
 }
 
@@ -231,10 +237,12 @@ type PsychologyRequestCreate struct {
 }
 
 type UpdateProfileRequest struct {
-	Name       string `json:"name"`
-	Country    string `json:"country"`
-	University string `json:"university"`
-	AvatarURL  string `json:"avatar_url"`
+	Name          string `json:"name"`
+	Country       string `json:"country"`
+	University    string `json:"university"`
+	AvatarURL     string `json:"avatar_url"`
+	Language      string `json:"language"`
+	LanguageLevel string `json:"language_level"`
 }
 
 type ChangePasswordRequest struct {
@@ -370,4 +378,115 @@ type AdminCreateUserRequest struct {
 	Country    string `json:"country"`
 	University string `json:"university"`
 	Role       string `json:"role"`
+}
+
+// Teams & Gamification models
+
+type Team struct {
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	Language      string    `json:"language"`
+	LanguageLevel string    `json:"language_level"`
+	Description   string    `json:"description"`
+	AvatarURL     string    `json:"avatar_url"`
+	TotalXP       int       `json:"total_xp"`
+	CreatedBy     uuid.UUID `json:"created_by"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type TeamSummary struct {
+	ID            uuid.UUID `json:"id"`
+	Name          string    `json:"name"`
+	Language      string    `json:"language"`
+	LanguageLevel string    `json:"language_level"`
+	Description   string    `json:"description"`
+	AvatarURL     string    `json:"avatar_url"`
+	TotalXP       int       `json:"total_xp"`
+	MemberCount   int       `json:"member_count"`
+	Rank          int       `json:"rank"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type TeamMemberDetail struct {
+	UserID        uuid.UUID `json:"user_id"`
+	Name          string    `json:"name"`
+	AvatarURL     string    `json:"avatar_url"`
+	Role          string    `json:"role"`
+	Language      string    `json:"language"`
+	LanguageLevel string    `json:"language_level"`
+	JoinedAt      time.Time `json:"joined_at"`
+}
+
+type TeamDetail struct {
+	TeamSummary
+	Members    []TeamMemberDetail  `json:"members"`
+	Tasks      []TeamTaskDetail    `json:"tasks"`
+	Activities []TeamActivityEntry `json:"activities"`
+}
+
+type Task struct {
+	ID          uuid.UUID `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	XPReward    int       `json:"xp_reward"`
+	Deadline    string    `json:"deadline"` // empty string or "YYYY-MM-DDTHH:MM:SSZ"
+	Status      string    `json:"status"`
+	CreatedBy   uuid.UUID `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type TeamTask struct {
+	ID          uuid.UUID `json:"id"`
+	TeamID      uuid.UUID `json:"team_id"`
+	TaskID      uuid.UUID `json:"task_id"`
+	Status      string    `json:"status"`
+	AssignedAt  time.Time `json:"assigned_at"`
+	CompletedAt string    `json:"completed_at"` // empty or timestamp string
+}
+
+type TeamTaskDetail struct {
+	ID          uuid.UUID `json:"id"`
+	TeamID      uuid.UUID `json:"team_id"`
+	TaskID      uuid.UUID `json:"task_id"`
+	Status      string    `json:"status"`
+	AssignedAt  time.Time `json:"assigned_at"`
+	CompletedAt string    `json:"completed_at"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	XPReward    int       `json:"xp_reward"`
+	TeamName    string    `json:"team_name,omitempty"`
+}
+
+type TeamActivityEntry struct {
+	ID          uuid.UUID `json:"id"`
+	TeamID      uuid.UUID `json:"team_id"`
+	UserID      uuid.UUID `json:"user_id,omitempty"`
+	Action      string    `json:"action"`
+	Description string    `json:"description"`
+	XPGained    int       `json:"xp_gained"`
+	CreatedAt   time.Time `json:"created_at"`
+	UserName    string    `json:"user_name,omitempty"`
+}
+
+// Request types for teams & tasks
+
+type CreateTeamRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	AvatarURL   string `json:"avatar_url"`
+}
+
+type TaskUpsertRequest struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	XPReward    int    `json:"xp_reward"`
+	Deadline    string `json:"deadline"` // optional, ISO8601
+}
+
+type AssignTaskRequest struct {
+	TeamID uuid.UUID `json:"team_id"`
+}
+
+type CompleteTeamTaskRequest struct {
+	// empty body - just marks as complete
 }

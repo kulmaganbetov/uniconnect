@@ -16,6 +16,8 @@ export default function Profile() {
     country: "",
     university: "",
     avatar_url: "",
+    language: "",
+    language_level: "",
   });
   const [saved, setSaved] = useState(false);
 
@@ -43,6 +45,8 @@ export default function Profile() {
       country: p.country || "",
       university: p.university || "",
       avatar_url: p.avatar_url || "",
+      language: p.language || "",
+      language_level: p.language_level || "",
     });
 
   const updateMutation = useMutation({
@@ -240,6 +244,51 @@ export default function Profile() {
                         )}
                       </div>
 
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-text-dark mb-2">
+                            Language{" "}
+                            <span className="text-muted font-normal">(optional)</span>
+                          </label>
+                          <select
+                            value={form.language}
+                            onChange={(e) => setForm({ ...form, language: e.target.value })}
+                            className="input-field"
+                          >
+                            <option value="">— Not set —</option>
+                            <option value="English">English</option>
+                            <option value="German">German</option>
+                            <option value="French">French</option>
+                            <option value="Spanish">Spanish</option>
+                            <option value="Chinese">Chinese</option>
+                            <option value="Japanese">Japanese</option>
+                            <option value="Korean">Korean</option>
+                            <option value="Kazakh">Kazakh</option>
+                            <option value="Russian">Russian</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-text-dark mb-2">
+                            Language Level{" "}
+                            <span className="text-muted font-normal">(optional)</span>
+                          </label>
+                          <select
+                            value={form.language_level}
+                            onChange={(e) => setForm({ ...form, language_level: e.target.value })}
+                            className="input-field"
+                          >
+                            <option value="">— Not set —</option>
+                            <option value="A1">A1</option>
+                            <option value="A2">A2</option>
+                            <option value="B1">B1</option>
+                            <option value="B2">B2</option>
+                            <option value="C1">C1</option>
+                            <option value="C2">C2</option>
+                            <option value="Native">Native</option>
+                          </select>
+                        </div>
+                      </div>
+
                       {updateMutation.isError && (
                         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3">
                           {(updateMutation.error as Error)?.message || "Failed to update"}
@@ -284,6 +333,14 @@ export default function Profile() {
                       <div className="flex py-4">
                         <dt className="w-1/3 text-sm font-semibold text-muted">Role</dt>
                         <dd className="flex-1 text-text-dark capitalize">{profile.role}</dd>
+                      </div>
+                      <div className="flex py-4">
+                        <dt className="w-1/3 text-sm font-semibold text-muted">Language</dt>
+                        <dd className="flex-1 text-text-dark">{profile.language || "—"}</dd>
+                      </div>
+                      <div className="flex py-4">
+                        <dt className="w-1/3 text-sm font-semibold text-muted">Language Level</dt>
+                        <dd className="flex-1 text-text-dark">{profile.language_level || "—"}</dd>
                       </div>
                     </dl>
                   )}
