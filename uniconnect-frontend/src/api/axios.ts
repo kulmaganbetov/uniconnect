@@ -86,3 +86,10 @@ export async function apiDelete<T>(url: string): Promise<T> {
   const res = await api.delete<T>(url);
   return res.data;
 }
+
+export async function apiPostFormData<T>(url: string, formData: FormData): Promise<T> {
+  const res = await api.post<T>(url, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+}

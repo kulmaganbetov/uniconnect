@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -61,6 +62,67 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: user})
+}
+
+func (h *ProfileHandler) UploadAvatar(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "file too large (max 5 MB)"})
+		return
+	}
+
+	file, header, err := r.FormFile("avatar")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "no file provided"})
+		return
+	}
+	defer file.Close()
+
+	// Detect content type from the first 512 bytes, then rewind.
+	buf := make([]byte, 512)
+	n, _ := file.Read(buf)
+	contentType := http.DetectContentType(buf[:n])
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to process file"})
+		return
+	}
+
+	switch contentType {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+	default:
+		// Also accept by file extension as a fallback for WebP (DetectContentType may return application/octet-stream)
+		ext := ""
+		if len(header.Filename) > 4 {
+			ext = header.Filename[len(header.Filename)-5:]
+		}
+		if ext != ".webp" {
+			writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "unsupported file type; allowed: JPEG, PNG, GIF, WebP"})
+			return
+		}
+		contentType = "image/webp"
+	}
+
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := r.Host
+	if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
+		host = fwdHost
+	}
+	baseURL := scheme + "://" + host
+
+	user, err := h.svc.UploadAvatar(r.Context(), userID, file, contentType, baseURL)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to save avatar"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"avatar_url": user.AvatarURL}})
 }
 
 func (h *ProfileHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {

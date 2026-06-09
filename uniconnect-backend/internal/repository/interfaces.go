@@ -12,6 +12,7 @@ type UserRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 	UpdateUser(ctx context.Context, id uuid.UUID, name, country, university, avatarURL, language, languageLevel string) (*model.User, error)
+	UpdateAvatarURL(ctx context.Context, id uuid.UUID, url string) (*model.User, error)
 	UpdateUserPassword(ctx context.Context, id uuid.UUID, newPasswordHash string) error
 	VerifyUserPassword(ctx context.Context, id uuid.UUID, password string) error
 	GetAllUsers(ctx context.Context) ([]model.User, error)

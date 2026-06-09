@@ -64,6 +64,19 @@ func (db *DB) UpdateUser(ctx context.Context, id uuid.UUID, name, country, unive
 	return user, nil
 }
 
+func (db *DB) UpdateAvatarURL(ctx context.Context, id uuid.UUID, url string) (*model.User, error) {
+	u := &model.User{}
+	err := db.Pool.QueryRow(ctx, `
+		UPDATE users SET avatar_url = $2 WHERE id = $1
+		RETURNING id, name, email, password_hash, country, university, role, COALESCE(avatar_url, ''), COALESCE(language, ''), COALESCE(language_level, ''), created_at`,
+		id, url,
+	).Scan(&u.ID, &u.Name, &u.Email, &u.PasswordHash, &u.Country, &u.University, &u.Role, &u.AvatarURL, &u.Language, &u.LanguageLevel, &u.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
 func (db *DB) UpdateUserPassword(ctx context.Context, id uuid.UUID, newPasswordHash string) error {
 	query := `UPDATE users SET password_hash = $2 WHERE id = $1`
 	_, err := db.Pool.Exec(ctx, query, id, newPasswordHash)

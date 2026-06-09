@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -39,6 +42,46 @@ func (s *ProfileService) UpdateProfile(ctx context.Context, userID uuid.UUID, re
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.UserResponse{}, ErrNotFound
 		}
+		return model.UserResponse{}, ErrInternal
+	}
+	return model.SanitizeUser(user), nil
+}
+
+// UploadAvatar saves an image file to disk and updates avatar_url in the DB.
+// contentType must be one of: image/jpeg, image/png, image/gif, image/webp.
+// baseURL is used to construct the public URL (e.g. "http://localhost:8080").
+func (s *ProfileService) UploadAvatar(ctx context.Context, userID uuid.UUID, file io.Reader, contentType, baseURL string) (model.UserResponse, error) {
+	ext := map[string]string{
+		"image/jpeg": ".jpg",
+		"image/png":  ".png",
+		"image/gif":  ".gif",
+		"image/webp": ".webp",
+	}[contentType]
+	if ext == "" {
+		return model.UserResponse{}, errors.New("unsupported image type")
+	}
+
+	dir := filepath.Join(".", "uploads", "avatars")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return model.UserResponse{}, ErrInternal
+	}
+
+	filename := userID.String() + "-" + uuid.New().String() + ext
+	dst, err := os.Create(filepath.Join(dir, filename))
+	if err != nil {
+		return model.UserResponse{}, ErrInternal
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		os.Remove(filepath.Join(dir, filename))
+		return model.UserResponse{}, ErrInternal
+	}
+
+	avatarURL := baseURL + "/uploads/avatars/" + filename
+	user, err := s.users.UpdateAvatarURL(ctx, userID, avatarURL)
+	if err != nil {
+		os.Remove(filepath.Join(dir, filename))
 		return model.UserResponse{}, ErrInternal
 	}
 	return model.SanitizeUser(user), nil
