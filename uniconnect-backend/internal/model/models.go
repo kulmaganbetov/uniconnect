@@ -14,6 +14,7 @@ type User struct {
 	Country      string    `json:"country"`
 	University   string    `json:"university"`
 	Role         string    `json:"role"`
+	AvatarURL    string    `json:"avatar_url"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -27,6 +28,7 @@ type UserResponse struct {
 	Country    string    `json:"country"`
 	University string    `json:"university"`
 	Role       string    `json:"role"`
+	AvatarURL  string    `json:"avatar_url"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
@@ -44,6 +46,7 @@ func SanitizeUser(u *User) UserResponse {
 		Country:    u.Country,
 		University: u.University,
 		Role:       u.Role,
+		AvatarURL:  u.AvatarURL,
 		CreatedAt:  u.CreatedAt,
 	}
 }
@@ -63,6 +66,8 @@ type Dormitory struct {
 	Address        string    `json:"address"`
 	TotalRooms     int       `json:"total_rooms"`
 	AvailableRooms int       `json:"available_rooms"`
+	SingleRooms    int       `json:"single_rooms"`
+	DoubleRooms    int       `json:"double_rooms"`
 	PricePerMonth  float64   `json:"price_per_month"`
 	Description    string    `json:"description"`
 	ImageURL       string    `json:"image_url"`
@@ -74,6 +79,7 @@ type DormitoryApplication struct {
 	UserID      uuid.UUID `json:"user_id"`
 	DormitoryID uuid.UUID `json:"dormitory_id"`
 	Status      string    `json:"status"`
+	RoomType    string    `json:"room_type"`
 	Message     string    `json:"message"`
 	CreatedAt   time.Time `json:"created_at"`
 }
@@ -86,6 +92,7 @@ type DormApplicationDetail struct {
 	UserID        uuid.UUID `json:"user_id"`
 	DormitoryID   uuid.UUID `json:"dormitory_id"`
 	Status        string    `json:"status"`
+	RoomType      string    `json:"room_type"`
 	Message       string    `json:"message"`
 	CreatedAt     time.Time `json:"created_at"`
 	DormitoryName string    `json:"dormitory_name"`
@@ -137,6 +144,31 @@ type JobApplication struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type JobApplicationDetail struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	JobID     uuid.UUID `json:"job_id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	JobTitle  string    `json:"job_title"`
+	Company   string    `json:"company"`
+	UserName  string    `json:"user_name"`
+	UserEmail string    `json:"user_email"`
+}
+
+type MedicalAppointmentDetail struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	ServiceID   uuid.UUID `json:"service_id"`
+	Date        string    `json:"date"`
+	Time        string    `json:"time"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	ServiceName string    `json:"service_name"`
+	UserName    string    `json:"user_name"`
+	UserEmail   string    `json:"user_email"`
+}
+
 type PsychologyRequest struct {
 	ID            uuid.UUID `json:"id"`
 	UserID        uuid.UUID `json:"user_id"`
@@ -178,6 +210,7 @@ type LoginResponse struct {
 
 type DormitoryApplyRequest struct {
 	DormitoryID uuid.UUID `json:"dormitory_id"`
+	RoomType    string    `json:"room_type"`
 	Message     string    `json:"message"`
 }
 
@@ -201,6 +234,12 @@ type UpdateProfileRequest struct {
 	Name       string `json:"name"`
 	Country    string `json:"country"`
 	University string `json:"university"`
+	AvatarURL  string `json:"avatar_url"`
+}
+
+type ChangePasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 type UpdateApplicationStatusRequest struct {
@@ -286,6 +325,8 @@ type DormitoryUpsertRequest struct {
 	Address        string  `json:"address"`
 	TotalRooms     int     `json:"total_rooms"`
 	AvailableRooms int     `json:"available_rooms"`
+	SingleRooms    int     `json:"single_rooms"`
+	DoubleRooms    int     `json:"double_rooms"`
 	PricePerMonth  float64 `json:"price_per_month"`
 	Description    string  `json:"description"`
 	ImageURL       string  `json:"image_url"`

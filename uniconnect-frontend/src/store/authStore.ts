@@ -7,6 +7,7 @@ export interface User {
   country: string;
   university: string;
   role: string;
+  avatar_url?: string;
   created_at?: string;
 }
 

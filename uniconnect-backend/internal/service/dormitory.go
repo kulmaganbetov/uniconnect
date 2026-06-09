@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
@@ -25,11 +26,16 @@ func (s *DormitoryService) GetByID(ctx context.Context, id uuid.UUID) (*model.Do
 }
 
 func (s *DormitoryService) Apply(ctx context.Context, userID uuid.UUID, req model.DormitoryApplyRequest) (*model.DormitoryApplication, error) {
+	roomType := req.RoomType
+	if roomType == "" {
+		roomType = "any"
+	}
 	app := &model.DormitoryApplication{
 		ID:          uuid.New(),
 		UserID:      userID,
 		DormitoryID: req.DormitoryID,
 		Status:      "pending",
+		RoomType:    roomType,
 		Message:     req.Message,
 	}
 
@@ -51,14 +57,18 @@ func (s *DormitoryService) UpdateApplicationStatus(ctx context.Context, id uuid.
 	return s.repo.UpdateDormitoryApplicationStatus(ctx, id, status)
 }
 
-// Create inserts a new dormitory. Admin/dormitory_manager only.
 func (s *DormitoryService) Create(ctx context.Context, req model.DormitoryUpsertRequest) (*model.Dormitory, error) {
+	if req.TotalRooms < 0 || req.AvailableRooms < 0 || req.SingleRooms < 0 || req.DoubleRooms < 0 || req.PricePerMonth < 0 {
+		return nil, errors.New("room counts and price must not be negative")
+	}
 	d := &model.Dormitory{
 		ID:             uuid.New(),
 		Name:           req.Name,
 		Address:        req.Address,
 		TotalRooms:     req.TotalRooms,
 		AvailableRooms: req.AvailableRooms,
+		SingleRooms:    req.SingleRooms,
+		DoubleRooms:    req.DoubleRooms,
 		PricePerMonth:  req.PricePerMonth,
 		Description:    req.Description,
 		ImageURL:       req.ImageURL,
@@ -69,13 +79,17 @@ func (s *DormitoryService) Create(ctx context.Context, req model.DormitoryUpsert
 	return d, nil
 }
 
-// Update mutates an existing dormitory.
 func (s *DormitoryService) Update(ctx context.Context, id uuid.UUID, req model.DormitoryUpsertRequest) (*model.Dormitory, error) {
+	if req.TotalRooms < 0 || req.AvailableRooms < 0 || req.SingleRooms < 0 || req.DoubleRooms < 0 || req.PricePerMonth < 0 {
+		return nil, errors.New("room counts and price must not be negative")
+	}
 	d := &model.Dormitory{
 		Name:           req.Name,
 		Address:        req.Address,
 		TotalRooms:     req.TotalRooms,
 		AvailableRooms: req.AvailableRooms,
+		SingleRooms:    req.SingleRooms,
+		DoubleRooms:    req.DoubleRooms,
 		PricePerMonth:  req.PricePerMonth,
 		Description:    req.Description,
 		ImageURL:       req.ImageURL,

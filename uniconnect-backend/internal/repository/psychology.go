@@ -43,10 +43,10 @@ func (db *DB) GetAllGuides(ctx context.Context, category string) ([]model.Guide,
 	var args []interface{}
 
 	if category != "" {
-		query = `SELECT id, title, category, content, COALESCE(image_url, ''), created_at FROM guides WHERE category = $1 ORDER BY created_at DESC`
+		query = `SELECT id, title, category, content, COALESCE(image_url, ''), created_at FROM guides WHERE LOWER(category) = LOWER($1) ORDER BY title ASC`
 		args = append(args, category)
 	} else {
-		query = `SELECT id, title, category, content, COALESCE(image_url, ''), created_at FROM guides ORDER BY created_at DESC`
+		query = `SELECT id, title, category, content, COALESCE(image_url, ''), created_at FROM guides ORDER BY title ASC`
 	}
 
 	rows, err := db.Pool.Query(ctx, query, args...)

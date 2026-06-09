@@ -78,6 +78,42 @@ func (h *MedicalHandler) MyAppointments(w http.ResponseWriter, r *http.Request) 
 
 // Admin operations
 
+func (h *MedicalHandler) GetAllAppointments(w http.ResponseWriter, r *http.Request) {
+	apps, err := h.svc.GetAllAppointments(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, model.APIResponse{Success: false, Error: "failed to fetch appointments"})
+		return
+	}
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: apps})
+}
+
+func (h *MedicalHandler) UpdateAppointmentStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid appointment id"})
+		return
+	}
+
+	var req model.UpdateApplicationStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+
+	if req.Status != "pending" && req.Status != "confirmed" && req.Status != "cancelled" {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "status must be 'pending', 'confirmed', or 'cancelled'"})
+		return
+	}
+
+	app, err := h.svc.UpdateAppointmentStatus(r.Context(), id, req.Status)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "appointment not found"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: app})
+}
+
 func (h *MedicalHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req model.MedicalUpsertRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

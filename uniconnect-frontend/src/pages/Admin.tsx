@@ -36,6 +36,8 @@ interface Dormitory {
   address: string;
   total_rooms: number;
   available_rooms: number;
+  single_rooms: number;
+  double_rooms: number;
   price_per_month: number;
   description: string;
   image_url: string;
@@ -89,8 +91,34 @@ interface DormApplication {
   user_name: string;
   user_email: string;
   user_country: string;
+  room_type: string;
   status: string;
   message: string;
+  created_at: string;
+}
+
+interface JobApplicationDetail {
+  id: string;
+  user_id: string;
+  job_id: string;
+  job_title: string;
+  company: string;
+  user_name: string;
+  user_email: string;
+  status: string;
+  created_at: string;
+}
+
+interface MedicalAppointmentDetail {
+  id: string;
+  user_id: string;
+  service_id: string;
+  service_name: string;
+  user_name: string;
+  user_email: string;
+  date: string;
+  time: string;
+  status: string;
   created_at: string;
 }
 
@@ -555,6 +583,8 @@ const emptyDorm: Omit<Dormitory, "id"> = {
   address: "",
   total_rooms: 0,
   available_rooms: 0,
+  single_rooms: 0,
+  double_rooms: 0,
   price_per_month: 0,
   description: "",
   image_url: "",
@@ -696,7 +726,13 @@ function DormitoriesTab() {
                     <div className="flex justify-between items-start gap-3 mb-2">
                       <div>
                         <h3 className="font-bold text-navy text-lg">{d.name}</h3>
-                        <div className="text-xs text-muted">{d.address}</div>
+                        <button
+                          onClick={() => window.open(`https://2gis.kz/search/${encodeURIComponent(d.address)}`, "_blank", "noopener,noreferrer")}
+                          className="text-xs text-primary hover:underline"
+                          title="Open on map"
+                        >
+                          {d.address}
+                        </button>
                       </div>
                       <span className="badge-green">
                         {d.available_rooms}/{d.total_rooms}
@@ -774,6 +810,11 @@ function DormitoriesTab() {
                       <option value="rejected">Rejected</option>
                     </select>
                   </div>
+                  {a.room_type && a.room_type !== "any" && (
+                    <div className="text-xs text-text-dark mt-1">
+                      Room type: <strong className="capitalize">{a.room_type}</strong>
+                    </div>
+                  )}
                   {a.message && (
                     <pre className="text-xs text-muted whitespace-pre-wrap font-sans bg-bg-light rounded p-3 mt-2">
                       {a.message}
@@ -840,24 +881,33 @@ function DormitoryModal({
           required
         />
         <div className="grid grid-cols-2 gap-3">
-          <Input
+          <NumberInput
             label="Total rooms"
-            type="number"
-            value={String(form.total_rooms)}
-            onChange={(v) => setForm({ ...form, total_rooms: Number(v) })}
+            value={form.total_rooms}
+            onChange={(v) => setForm({ ...form, total_rooms: v })}
           />
-          <Input
+          <NumberInput
             label="Available"
-            type="number"
-            value={String(form.available_rooms)}
-            onChange={(v) => setForm({ ...form, available_rooms: Number(v) })}
+            value={form.available_rooms}
+            onChange={(v) => setForm({ ...form, available_rooms: v })}
           />
         </div>
-        <Input
+        <div className="grid grid-cols-2 gap-3">
+          <NumberInput
+            label="Single rooms available"
+            value={form.single_rooms}
+            onChange={(v) => setForm({ ...form, single_rooms: v })}
+          />
+          <NumberInput
+            label="Double rooms available"
+            value={form.double_rooms}
+            onChange={(v) => setForm({ ...form, double_rooms: v })}
+          />
+        </div>
+        <NumberInput
           label="Price per month (₸)"
-          type="number"
-          value={String(form.price_per_month)}
-          onChange={(v) => setForm({ ...form, price_per_month: Number(v) })}
+          value={form.price_per_month}
+          onChange={(v) => setForm({ ...form, price_per_month: v })}
         />
         <Textarea
           label="Description"
@@ -892,10 +942,26 @@ function JobsTab() {
   const toast = useToast();
   const [editing, setEditing] = useState<Job | null>(null);
   const [creating, setCreating] = useState(false);
+  const [subView, setSubView] = useState<"list" | "applications">("list");
 
   const query = useQuery({
     queryKey: ["admin", "jobs"],
     queryFn: () => apiGet<Job[]>("/api/jobs"),
+  });
+
+  const appsQuery = useQuery({
+    queryKey: ["admin", "job-applications"],
+    queryFn: () => apiGet<JobApplicationDetail[]>("/api/admin/job-applications"),
+  });
+
+  const updateAppStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiPut<JobApplicationDetail>(`/api/admin/job-applications/${id}`, { status }),
+    onSuccess: () => {
+      toast.success("Application status updated");
+      qc.invalidateQueries({ queryKey: ["admin", "job-applications"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const create = useMutation({
@@ -928,47 +994,113 @@ function JobsTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (query.isLoading) return <LoadingSpinner label="Loading jobs..." />;
-  if (query.isError)
-    return <ErrorBanner message={(query.error as Error).message} />;
-
-  const items = query.data || [];
+  const apps = appsQuery.data || [];
+  const pendingCount = apps.filter((a) => a.status === "pending").length;
 
   return (
     <>
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setCreating(true)} className="btn-primary">
-          + Add job
+      {/* Sub-navigation */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setSubView("list")}
+          className={`tab-button ${subView === "list" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Jobs
         </button>
+        <button
+          onClick={() => setSubView("applications")}
+          className={`tab-button ${subView === "applications" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Applications
+          {pendingCount > 0 && (
+            <span className="ml-1.5 bg-yellow-100 text-yellow-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+        <div className="flex-1" />
+        {subView === "list" && (
+          <button onClick={() => setCreating(true)} className="btn-primary">
+            + Add job
+          </button>
+        )}
       </div>
 
-      <div className="space-y-3">
-        {items.map((j) => (
-          <div key={j.id} className="card p-5 flex justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-navy">{j.title}</h3>
-              <div className="text-sm text-muted">
-                {j.company} · {j.location} · {j.schedule}
-              </div>
-              <div className="text-sm text-text-dark mt-1">{j.salary}</div>
+      {subView === "list" ? (
+        <>
+          {query.isLoading ? (
+            <LoadingSpinner label="Loading jobs..." />
+          ) : query.isError ? (
+            <ErrorBanner message={(query.error as Error).message} />
+          ) : (
+            <div className="space-y-3">
+              {(query.data || []).map((j) => (
+                <div key={j.id} className="card p-5 flex justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-navy">{j.title}</h3>
+                    <div className="text-sm text-muted">
+                      {j.company} · {j.location} · {j.schedule}
+                    </div>
+                    <div className="text-sm text-text-dark mt-1">{j.salary}</div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={() => setEditing(j)} className="btn-ghost">Edit</button>
+                    <button
+                      onClick={() => { if (confirm(`Delete ${j.title}?`)) remove.mutate(j.id); }}
+                      className="btn-danger"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {(query.data || []).length === 0 && <EmptyState message="No jobs yet." />}
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <button onClick={() => setEditing(j)} className="btn-ghost">
-                Edit
-              </button>
-              <button
-                onClick={() => {
-                  if (confirm(`Delete ${j.title}?`)) remove.mutate(j.id);
-                }}
-                className="btn-danger"
-              >
-                Delete
-              </button>
+          )}
+        </>
+      ) : (
+        <>
+          {appsQuery.isLoading ? (
+            <LoadingSpinner label="Loading applications..." />
+          ) : appsQuery.isError ? (
+            <ErrorBanner message={(appsQuery.error as Error).message} />
+          ) : apps.length === 0 ? (
+            <EmptyState message="No job applications yet." />
+          ) : (
+            <div className="space-y-3">
+              {apps.map((a) => (
+                <div key={a.id} className="card p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-2">
+                    <div>
+                      <h4 className="font-bold text-navy">{a.user_name}</h4>
+                      <div className="text-xs text-muted">{a.user_email}</div>
+                      <div className="text-xs text-text-dark mt-1">
+                        Applied for: <strong>{a.job_title}</strong> at {a.company}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {new Date(a.created_at).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </div>
+                    </div>
+                    <select
+                      value={a.status}
+                      onChange={(e) => updateAppStatus.mutate({ id: a.id, status: e.target.value })}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm bg-white self-start"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-        ))}
-        {items.length === 0 && <EmptyState message="No jobs yet." />}
-      </div>
+          )}
+        </>
+      )}
 
       {creating && (
         <JobModal
@@ -1080,10 +1212,26 @@ function MedicalTab() {
   const toast = useToast();
   const [editing, setEditing] = useState<MedicalService | null>(null);
   const [creating, setCreating] = useState(false);
+  const [subView, setSubView] = useState<"list" | "appointments">("list");
 
   const query = useQuery({
     queryKey: ["admin", "medical"],
     queryFn: () => apiGet<MedicalService[]>("/api/medical"),
+  });
+
+  const appsQuery = useQuery({
+    queryKey: ["admin", "medical-appointments"],
+    queryFn: () => apiGet<MedicalAppointmentDetail[]>("/api/admin/medical-appointments"),
+  });
+
+  const updateAppStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      apiPut<MedicalAppointmentDetail>(`/api/admin/medical-appointments/${id}`, { status }),
+    onSuccess: () => {
+      toast.success("Appointment status updated");
+      qc.invalidateQueries({ queryKey: ["admin", "medical-appointments"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const create = useMutation({
@@ -1118,65 +1266,130 @@ function MedicalTab() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (query.isLoading)
-    return <LoadingSpinner label="Loading services..." />;
-  if (query.isError)
-    return <ErrorBanner message={(query.error as Error).message} />;
-
-  const items = query.data || [];
+  const appointments = appsQuery.data || [];
+  const pendingCount = appointments.filter((a) => a.status === "pending").length;
 
   return (
     <>
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setCreating(true)} className="btn-primary">
-          + Add service
+      {/* Sub-navigation */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setSubView("list")}
+          className={`tab-button ${subView === "list" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Services
         </button>
+        <button
+          onClick={() => setSubView("appointments")}
+          className={`tab-button ${subView === "appointments" ? "tab-button-active" : "tab-button-inactive"}`}
+        >
+          Appointments
+          {pendingCount > 0 && (
+            <span className="ml-1.5 bg-yellow-100 text-yellow-700 text-xs font-bold px-1.5 py-0.5 rounded-full">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+        <div className="flex-1" />
+        {subView === "list" && (
+          <button onClick={() => setCreating(true)} className="btn-primary">
+            + Add service
+          </button>
+        )}
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {items.map((m) => (
-          <div key={m.id} className="card overflow-hidden">
-            {m.image_url ? (
-              <img
-                src={m.image_url}
-                alt={m.name}
-                className="w-full h-36 object-cover"
-                onError={(e) => (e.currentTarget.style.display = "none")}
-              />
-            ) : null}
-            <div className="p-5">
-              <div className="flex justify-between items-start gap-3 mb-2">
-                <div>
-                  <h3 className="font-bold text-navy">{m.name}</h3>
-                  <div className="text-xs text-muted">{m.type}</div>
+
+      {subView === "list" ? (
+        <>
+          {query.isLoading ? (
+            <LoadingSpinner label="Loading services..." />
+          ) : query.isError ? (
+            <ErrorBanner message={(query.error as Error).message} />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(query.data || []).map((m) => (
+                <div key={m.id} className="card overflow-hidden">
+                  {m.image_url ? (
+                    <img
+                      src={m.image_url}
+                      alt={m.name}
+                      className="w-full h-36 object-cover"
+                      onError={(e) => (e.currentTarget.style.display = "none")}
+                    />
+                  ) : null}
+                  <div className="p-5">
+                    <div className="flex justify-between items-start gap-3 mb-2">
+                      <div>
+                        <h3 className="font-bold text-navy">{m.name}</h3>
+                        <div className="text-xs text-muted">{m.type}</div>
+                      </div>
+                      {m.is_free && <span className="badge-green">Free</span>}
+                    </div>
+                    <div className="text-sm text-text-dark space-y-0.5">
+                      <button
+                        onClick={() => window.open(`https://2gis.kz/search/${encodeURIComponent(m.address)}`, "_blank", "noopener,noreferrer")}
+                        className="text-primary hover:underline text-left"
+                        title="Open on map"
+                      >
+                        {m.address}
+                      </button>
+                      <div>{m.phone}</div>
+                      <div className="text-muted">{m.working_hours}</div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button onClick={() => setEditing(m)} className="btn-ghost flex-1">Edit</button>
+                      <button
+                        onClick={() => { if (confirm(`Delete ${m.name}?`)) remove.mutate(m.id); }}
+                        className="btn-danger flex-1"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                {m.is_free && <span className="badge-green">Free</span>}
-              </div>
-              <div className="text-sm text-text-dark space-y-0.5">
-                <div>{m.address}</div>
-                <div>{m.phone}</div>
-                <div className="text-muted">{m.working_hours}</div>
-              </div>
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => setEditing(m)}
-                  className="btn-ghost flex-1"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm(`Delete ${m.name}?`)) remove.mutate(m.id);
-                  }}
-                  className="btn-danger flex-1"
-                >
-                  Delete
-                </button>
-              </div>
+              ))}
+              {(query.data || []).length === 0 && <EmptyState message="No services yet." />}
             </div>
-          </div>
-        ))}
-        {items.length === 0 && <EmptyState message="No services yet." />}
-      </div>
+          )}
+        </>
+      ) : (
+        <>
+          {appsQuery.isLoading ? (
+            <LoadingSpinner label="Loading appointments..." />
+          ) : appsQuery.isError ? (
+            <ErrorBanner message={(appsQuery.error as Error).message} />
+          ) : appointments.length === 0 ? (
+            <EmptyState message="No appointments yet." />
+          ) : (
+            <div className="space-y-3">
+              {appointments.map((a) => (
+                <div key={a.id} className="card p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                    <div>
+                      <h4 className="font-bold text-navy">{a.user_name}</h4>
+                      <div className="text-xs text-muted">{a.user_email}</div>
+                      <div className="text-xs text-text-dark mt-1">
+                        Service: <strong>{a.service_name}</strong>
+                      </div>
+                      <div className="text-xs text-muted">
+                        {a.date} {a.time && `at ${a.time}`}
+                      </div>
+                    </div>
+                    <select
+                      value={a.status}
+                      onChange={(e) => updateAppStatus.mutate({ id: a.id, status: e.target.value })}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm bg-white self-start"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {creating && (
         <MedicalModal
@@ -1420,12 +1633,24 @@ function GuideModal({
           onChange={(v) => setForm({ ...form, title: v })}
           required
         />
-        <Input
-          label="Category"
-          value={form.category}
-          onChange={(v) => setForm({ ...form, category: v })}
-          placeholder="e.g. Transport, Banking"
-        />
+        <div>
+          <label className="block text-xs font-semibold text-text-dark mb-1">
+            Category
+          </label>
+          <select
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            className="input-field"
+            required
+          >
+            <option value="">— Select category —</option>
+            <option value="transport">Transport</option>
+            <option value="banking">Banking</option>
+            <option value="mobile">Mobile</option>
+            <option value="food">Food</option>
+            <option value="emergency">Emergency</option>
+          </select>
+        </div>
         <Textarea
           label="Content"
           value={form.content}
@@ -1614,6 +1839,34 @@ function Input({
         required={required}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
+        className="input-field"
+      />
+    </div>
+  );
+}
+
+function NumberInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-text-dark mb-1">
+        {label}
+      </label>
+      <input
+        type="number"
+        min="0"
+        value={value}
+        onChange={(e) => {
+          const v = Number(e.target.value);
+          if (v >= 0) onChange(v);
+        }}
         className="input-field"
       />
     </div>

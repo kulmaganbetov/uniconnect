@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -15,23 +15,35 @@ export default function Profile() {
     name: "",
     country: "",
     university: "",
+    avatar_url: "",
   });
   const [saved, setSaved] = useState(false);
+
+  // Password change state
+  const [changingPwd, setChangingPwd] = useState(false);
+  const [pwdForm, setPwdForm] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+  const [pwdError, setPwdError] = useState("");
+  const [pwdSaved, setPwdSaved] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ["profile"],
     queryFn: () => apiGet<User>("/api/profile"),
   });
 
-  useEffect(() => {
-    if (profileQuery.data) {
-      setForm({
-        name: profileQuery.data.name || "",
-        country: profileQuery.data.country || "",
-        university: profileQuery.data.university || "",
-      });
-    }
-  }, [profileQuery.data]);
+  const profile = profileQuery.data;
+
+  // Sync form when profile loads
+  const initForm = (p: User) =>
+    setForm({
+      name: p.name || "",
+      country: p.country || "",
+      university: p.university || "",
+      avatar_url: p.avatar_url || "",
+    });
 
   const updateMutation = useMutation({
     mutationFn: (body: typeof form) => apiPut<User>("/api/profile", body),
@@ -49,7 +61,35 @@ export default function Profile() {
     updateMutation.mutate(form);
   };
 
-  const profile = profileQuery.data;
+  const changePwdMutation = useMutation({
+    mutationFn: (body: { current_password: string; new_password: string }) =>
+      apiPut<{ status: string }>("/api/profile/password", body),
+    onSuccess: () => {
+      setChangingPwd(false);
+      setPwdForm({ current_password: "", new_password: "", confirm_password: "" });
+      setPwdError("");
+      setPwdSaved(true);
+      setTimeout(() => setPwdSaved(false), 3000);
+    },
+    onError: (e: Error) => setPwdError(e.message || "Failed to change password"),
+  });
+
+  const handlePwdSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setPwdError("");
+    if (pwdForm.new_password !== pwdForm.confirm_password) {
+      setPwdError("New passwords do not match");
+      return;
+    }
+    if (pwdForm.new_password.length < 6) {
+      setPwdError("New password must be at least 6 characters");
+      return;
+    }
+    changePwdMutation.mutate({
+      current_password: pwdForm.current_password,
+      new_password: pwdForm.new_password,
+    });
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-light">
@@ -74,8 +114,7 @@ export default function Profile() {
               <LoadingSpinner fullPage label="Loading profile..." />
             ) : profileQuery.isError ? (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3">
-                {(profileQuery.error as Error)?.message ||
-                  "Failed to load profile"}
+                {(profileQuery.error as Error)?.message || "Failed to load profile"}
               </div>
             ) : profile ? (
               <>
@@ -84,12 +123,30 @@ export default function Profile() {
                     Profile updated successfully.
                   </div>
                 )}
+                {pwdSaved && (
+                  <div className="bg-green-50 border border-green-200 text-green-800 rounded px-4 py-3 text-sm mb-5">
+                    Password changed successfully.
+                  </div>
+                )}
 
                 {/* Avatar & header */}
                 <div className="card p-8 mb-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
-                    <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-3xl font-extrabold flex-shrink-0">
-                      {profile.name?.charAt(0).toUpperCase() || "U"}
+                    <div className="flex-shrink-0">
+                      {profile.avatar_url ? (
+                        <img
+                          src={profile.avatar_url}
+                          alt={profile.name}
+                          className="w-20 h-20 rounded-full object-cover border-2 border-primary"
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-3xl font-extrabold">
+                          {profile.name?.charAt(0).toUpperCase() || "U"}
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <h2 className="text-2xl font-bold text-navy">
@@ -102,7 +159,10 @@ export default function Profile() {
                     </div>
                     {!editing && (
                       <button
-                        onClick={() => setEditing(true)}
+                        onClick={() => {
+                          initForm(profile);
+                          setEditing(true);
+                        }}
                         className="btn-secondary"
                       >
                         Edit profile
@@ -112,7 +172,7 @@ export default function Profile() {
                 </div>
 
                 {/* Details / Form */}
-                <div className="card p-8">
+                <div className="card p-8 mb-6">
                   <h3 className="text-lg font-bold text-navy mb-6">
                     Personal details
                   </h3>
@@ -127,9 +187,7 @@ export default function Profile() {
                           type="text"
                           required
                           value={form.name}
-                          onChange={(e) =>
-                            setForm({ ...form, name: e.target.value })
-                          }
+                          onChange={(e) => setForm({ ...form, name: e.target.value })}
                           className="input-field"
                         />
                       </div>
@@ -142,9 +200,7 @@ export default function Profile() {
                           type="text"
                           required
                           value={form.country}
-                          onChange={(e) =>
-                            setForm({ ...form, country: e.target.value })
-                          }
+                          onChange={(e) => setForm({ ...form, country: e.target.value })}
                           className="input-field"
                         />
                       </div>
@@ -157,31 +213,43 @@ export default function Profile() {
                           type="text"
                           required
                           value={form.university}
-                          onChange={(e) =>
-                            setForm({ ...form, university: e.target.value })
-                          }
+                          onChange={(e) => setForm({ ...form, university: e.target.value })}
                           className="input-field"
                         />
                       </div>
 
+                      <div>
+                        <label className="block text-sm font-semibold text-text-dark mb-2">
+                          Avatar URL{" "}
+                          <span className="text-muted font-normal">(optional)</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={form.avatar_url}
+                          onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
+                          className="input-field"
+                          placeholder="https://example.com/photo.jpg"
+                        />
+                        {form.avatar_url && (
+                          <img
+                            src={form.avatar_url}
+                            alt="preview"
+                            className="mt-2 w-16 h-16 rounded-full object-cover border border-gray-200"
+                            onError={(e) => (e.currentTarget.style.display = "none")}
+                          />
+                        )}
+                      </div>
+
                       {updateMutation.isError && (
                         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3">
-                          {(updateMutation.error as Error)?.message ||
-                            "Failed to update"}
+                          {(updateMutation.error as Error)?.message || "Failed to update"}
                         </div>
                       )}
 
                       <div className="flex gap-3 pt-2">
                         <button
                           type="button"
-                          onClick={() => {
-                            setEditing(false);
-                            setForm({
-                              name: profile.name || "",
-                              country: profile.country || "",
-                              university: profile.university || "",
-                            });
-                          }}
+                          onClick={() => setEditing(false)}
                           className="btn-secondary flex-1"
                         >
                           Cancel
@@ -191,55 +259,131 @@ export default function Profile() {
                           disabled={updateMutation.isPending}
                           className="btn-primary flex-1 disabled:opacity-60"
                         >
-                          {updateMutation.isPending
-                            ? "Saving..."
-                            : "Save changes"}
+                          {updateMutation.isPending ? "Saving..." : "Save changes"}
                         </button>
                       </div>
                     </form>
                   ) : (
                     <dl className="divide-y divide-gray-100">
                       <div className="flex py-4">
-                        <dt className="w-1/3 text-sm font-semibold text-muted">
-                          Full name
-                        </dt>
-                        <dd className="flex-1 text-text-dark">
-                          {profile.name || "—"}
-                        </dd>
+                        <dt className="w-1/3 text-sm font-semibold text-muted">Full name</dt>
+                        <dd className="flex-1 text-text-dark">{profile.name || "—"}</dd>
                       </div>
                       <div className="flex py-4">
-                        <dt className="w-1/3 text-sm font-semibold text-muted">
-                          Email
-                        </dt>
-                        <dd className="flex-1 text-text-dark">
-                          {profile.email}
-                        </dd>
+                        <dt className="w-1/3 text-sm font-semibold text-muted">Email</dt>
+                        <dd className="flex-1 text-text-dark">{profile.email}</dd>
                       </div>
                       <div className="flex py-4">
-                        <dt className="w-1/3 text-sm font-semibold text-muted">
-                          Country
-                        </dt>
-                        <dd className="flex-1 text-text-dark">
-                          {profile.country || "—"}
-                        </dd>
+                        <dt className="w-1/3 text-sm font-semibold text-muted">Country</dt>
+                        <dd className="flex-1 text-text-dark">{profile.country || "—"}</dd>
                       </div>
                       <div className="flex py-4">
-                        <dt className="w-1/3 text-sm font-semibold text-muted">
-                          University
-                        </dt>
-                        <dd className="flex-1 text-text-dark">
-                          {profile.university || "—"}
-                        </dd>
+                        <dt className="w-1/3 text-sm font-semibold text-muted">University</dt>
+                        <dd className="flex-1 text-text-dark">{profile.university || "—"}</dd>
                       </div>
                       <div className="flex py-4">
-                        <dt className="w-1/3 text-sm font-semibold text-muted">
-                          Role
-                        </dt>
-                        <dd className="flex-1 text-text-dark capitalize">
-                          {profile.role}
-                        </dd>
+                        <dt className="w-1/3 text-sm font-semibold text-muted">Role</dt>
+                        <dd className="flex-1 text-text-dark capitalize">{profile.role}</dd>
                       </div>
                     </dl>
+                  )}
+                </div>
+
+                {/* Password change */}
+                <div className="card p-8">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-bold text-navy">Change password</h3>
+                    {!changingPwd && (
+                      <button
+                        onClick={() => {
+                          setChangingPwd(true);
+                          setPwdError("");
+                        }}
+                        className="btn-secondary"
+                      >
+                        Change password
+                      </button>
+                    )}
+                  </div>
+
+                  {changingPwd ? (
+                    <form onSubmit={handlePwdSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-text-dark mb-2">
+                          Current password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={pwdForm.current_password}
+                          onChange={(e) =>
+                            setPwdForm({ ...pwdForm, current_password: e.target.value })
+                          }
+                          className="input-field"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-text-dark mb-2">
+                          New password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={pwdForm.new_password}
+                          onChange={(e) =>
+                            setPwdForm({ ...pwdForm, new_password: e.target.value })
+                          }
+                          className="input-field"
+                          placeholder="At least 6 characters"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-text-dark mb-2">
+                          Confirm new password
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={pwdForm.confirm_password}
+                          onChange={(e) =>
+                            setPwdForm({ ...pwdForm, confirm_password: e.target.value })
+                          }
+                          className="input-field"
+                        />
+                      </div>
+
+                      {pwdError && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3">
+                          {pwdError}
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChangingPwd(false);
+                            setPwdError("");
+                            setPwdForm({ current_password: "", new_password: "", confirm_password: "" });
+                          }}
+                          className="btn-secondary flex-1"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={changePwdMutation.isPending}
+                          className="btn-primary flex-1 disabled:opacity-60"
+                        >
+                          {changePwdMutation.isPending ? "Saving..." : "Save password"}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className="text-sm text-muted">
+                      Keep your account secure by using a strong password.
+                    </p>
                   )}
                 </div>
               </>

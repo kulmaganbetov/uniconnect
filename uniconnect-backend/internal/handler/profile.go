@@ -63,6 +63,23 @@ func (h *ProfileHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: user})
 }
 
+func (h *ProfileHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+
+	var req model.ChangePasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+
+	if err := h.svc.ChangePassword(r.Context(), userID, req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: map[string]string{"status": "password changed"}})
+}
+
 type AdminHandler struct {
 	svc *service.AdminService
 }

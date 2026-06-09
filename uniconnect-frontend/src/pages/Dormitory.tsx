@@ -13,6 +13,8 @@ interface Dormitory {
   address: string;
   total_rooms: number;
   available_rooms: number;
+  single_rooms: number;
+  double_rooms: number;
   price_per_month: number;
   description: string;
   image_url: string;
@@ -24,9 +26,15 @@ interface DormApplication {
   user_id: string;
   dormitory_id: string;
   dormitory_name: string;
+  room_type: string;
   status: string;
   message: string;
   created_at: string;
+}
+
+function openAddressMap(address: string) {
+  const q = encodeURIComponent(address);
+  window.open(`https://2gis.kz/search/${q}`, "_blank", "noopener,noreferrer");
 }
 
 export default function Dormitory() {
@@ -50,13 +58,15 @@ export default function Dormitory() {
 
   const appsQuery = useQuery({
     queryKey: ["my-dorm-applications"],
-    queryFn: () =>
-      apiGet<DormApplication[]>("/api/dormitory/my-applications"),
+    queryFn: () => apiGet<DormApplication[]>("/api/dormitory/my-applications"),
   });
 
   const applyMutation = useMutation({
-    mutationFn: (body: { dormitory_id: string; message: string }) =>
-      apiPost<DormApplication>("/api/dormitory/apply", body),
+    mutationFn: (body: {
+      dormitory_id: string;
+      room_type: string;
+      message: string;
+    }) => apiPost<DormApplication>("/api/dormitory/apply", body),
     onSuccess: () => {
       toast.success("Application submitted! We'll notify you once it's reviewed.");
       setSelected(null);
@@ -72,12 +82,10 @@ export default function Dormitory() {
     e.preventDefault();
     if (!selected) return;
 
-    // Pack all student info into the message field
     const fullMessage = [
       `Full name: ${form.full_name}`,
       `Phone: ${form.phone}`,
       `Student ID: ${form.student_id}`,
-      `Preferred room: ${form.room_type === "single" ? "Single" : "Double (shared)"}`,
       form.message ? `\nAdditional notes:\n${form.message}` : "",
     ]
       .filter(Boolean)
@@ -85,6 +93,7 @@ export default function Dormitory() {
 
     applyMutation.mutate({
       dormitory_id: selected.id,
+      room_type: form.room_type,
       message: fullMessage,
     });
   };
@@ -95,7 +104,12 @@ export default function Dormitory() {
     return <span className="badge-yellow">Pending</span>;
   };
 
-  // Pre-fill name from profile
+  const roomTypeLabel = (rt: string) => {
+    if (rt === "single") return "Single room";
+    if (rt === "double") return "Double room";
+    return rt || "—";
+  };
+
   const openApplyModal = (dorm: Dormitory) => {
     setSelected(dorm);
     setForm((f) => ({ ...f, full_name: f.full_name || user?.name || "" }));
@@ -117,8 +131,7 @@ export default function Dormitory() {
             </h1>
             <p className="text-gray-300 mt-2 max-w-2xl">
               Browse available dormitories and submit your application online.
-              Fill in your details and the housing office will review your
-              request.
+              Fill in your details and the housing office will review your request.
             </p>
           </div>
         </section>
@@ -126,16 +139,13 @@ export default function Dormitory() {
         {/* Dormitories list */}
         <section className="py-12">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-2xl font-bold text-navy mb-6">
-              Available dormitories
-            </h2>
+            <h2 className="text-2xl font-bold text-navy mb-6">Available dormitories</h2>
 
             {dormsQuery.isLoading ? (
               <LoadingSpinner label="Loading dormitories..." />
             ) : dormsQuery.isError ? (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3">
-                {(dormsQuery.error as Error)?.message ||
-                  "Failed to load dormitories"}
+                {(dormsQuery.error as Error)?.message || "Failed to load dormitories"}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -146,36 +156,30 @@ export default function Dormitory() {
                         src={dorm.image_url}
                         alt={dorm.name}
                         className="w-full h-40 object-cover"
-                        onError={(e) =>
-                          (e.currentTarget.style.display = "none")
-                        }
+                        onError={(e) => (e.currentTarget.style.display = "none")}
                       />
                     ) : (
                       <div className="h-40 bg-gradient-to-br from-navy to-primary flex items-center justify-center">
-                        <svg
-                          className="w-16 h-16 text-white/40"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                          />
+                        <svg className="w-16 h-16 text-white/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                         </svg>
                       </div>
                     )}
                     <div className="p-6">
-                      <h3 className="text-lg font-bold text-navy mb-1">
-                        {dorm.name}
-                      </h3>
-                      <p className="text-xs text-muted mb-4">{dorm.address}</p>
-                      <p className="text-sm text-text-dark line-clamp-3 mb-5">
-                        {dorm.description}
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 text-xs mb-5">
+                      <h3 className="text-lg font-bold text-navy mb-1">{dorm.name}</h3>
+                      <button
+                        onClick={() => openAddressMap(dorm.address)}
+                        className="text-xs text-primary hover:underline mb-4 inline-flex items-center gap-1"
+                        title="Open on map"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {dorm.address}
+                      </button>
+                      <p className="text-sm text-text-dark line-clamp-3 mb-5">{dorm.description}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                         <div className="bg-bg-light px-3 py-2 rounded">
                           <div className="text-muted">Available</div>
                           <div className="font-bold text-navy">
@@ -189,6 +193,18 @@ export default function Dormitory() {
                           </div>
                         </div>
                       </div>
+                      {(dorm.single_rooms > 0 || dorm.double_rooms > 0) && (
+                        <div className="grid grid-cols-2 gap-2 text-xs mb-5">
+                          <div className="bg-bg-light px-3 py-2 rounded">
+                            <div className="text-muted">Single rooms</div>
+                            <div className="font-bold text-navy">{dorm.single_rooms} avail.</div>
+                          </div>
+                          <div className="bg-bg-light px-3 py-2 rounded">
+                            <div className="text-muted">Double rooms</div>
+                            <div className="font-bold text-navy">{dorm.double_rooms} avail.</div>
+                          </div>
+                        </div>
+                      )}
                       <button
                         onClick={() => openApplyModal(dorm)}
                         disabled={dorm.available_rooms === 0}
@@ -207,16 +223,13 @@ export default function Dormitory() {
         {/* My applications */}
         <section className="pb-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-2xl font-bold text-navy mb-6">
-              My applications
-            </h2>
+            <h2 className="text-2xl font-bold text-navy mb-6">My applications</h2>
 
             {appsQuery.isLoading ? (
               <LoadingSpinner />
             ) : appsQuery.isError ? (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3">
-                {(appsQuery.error as Error)?.message ||
-                  "Failed to load applications"}
+                {(appsQuery.error as Error)?.message || "Failed to load applications"}
               </div>
             ) : (appsQuery.data || []).length === 0 ? (
               <div className="card p-8 text-center text-muted text-sm">
@@ -232,7 +245,7 @@ export default function Dormitory() {
                           {app.dormitory_name || "Dormitory"}
                         </h3>
                         <div className="text-xs text-muted mt-1">
-                          Submitted{" "}
+                          {roomTypeLabel(app.room_type)} &middot; Submitted{" "}
                           {new Date(app.created_at).toLocaleDateString("en-GB", {
                             day: "numeric",
                             month: "short",
@@ -266,16 +279,19 @@ export default function Dormitory() {
             >
               <div className="border-b border-gray-100 px-6 py-4 flex justify-between items-center">
                 <div>
-                  <h3 className="text-lg font-bold text-navy">
-                    Apply for {selected.name}
-                  </h3>
-                  <p className="text-xs text-muted">{selected.address}</p>
+                  <h3 className="text-lg font-bold text-navy">Apply for {selected.name}</h3>
+                  <button
+                    onClick={() => openAddressMap(selected.address)}
+                    className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-0.5"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {selected.address}
+                  </button>
                 </div>
-                <button
-                  onClick={() => setSelected(null)}
-                  className="text-muted hover:text-text-dark text-2xl leading-none"
-                  aria-label="Close"
-                >
+                <button onClick={() => setSelected(null)} className="text-muted hover:text-text-dark text-2xl leading-none" aria-label="Close">
                   ×
                 </button>
               </div>
@@ -285,21 +301,16 @@ export default function Dormitory() {
                   <strong className="text-text-dark">
                     {selected.price_per_month.toLocaleString()} KZT/month
                   </strong>{" "}
-                  · {selected.available_rooms} rooms available out of{" "}
-                  {selected.total_rooms}
+                  · {selected.available_rooms} rooms available out of {selected.total_rooms}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-text-dark mb-1">
-                    Full name
-                  </label>
+                  <label className="block text-xs font-semibold text-text-dark mb-1">Full name</label>
                   <input
                     type="text"
                     required
                     value={form.full_name}
-                    onChange={(e) =>
-                      setForm({ ...form, full_name: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                     className="input-field"
                     placeholder="Your full name"
                   />
@@ -307,31 +318,23 @@ export default function Dormitory() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-text-dark mb-1">
-                      Phone number
-                    </label>
+                    <label className="block text-xs font-semibold text-text-dark mb-1">Phone number</label>
                     <input
                       type="tel"
                       required
                       value={form.phone}
-                      onChange={(e) =>
-                        setForm({ ...form, phone: e.target.value })
-                      }
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       className="input-field"
                       placeholder="+7 7XX XXX XXXX"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-text-dark mb-1">
-                      Student ID
-                    </label>
+                    <label className="block text-xs font-semibold text-text-dark mb-1">Student ID</label>
                     <input
                       type="text"
                       required
                       value={form.student_id}
-                      onChange={(e) =>
-                        setForm({ ...form, student_id: e.target.value })
-                      }
+                      onChange={(e) => setForm({ ...form, student_id: e.target.value })}
                       className="input-field"
                       placeholder="e.g. NRX-24001"
                     />
@@ -344,26 +347,25 @@ export default function Dormitory() {
                   </label>
                   <select
                     value={form.room_type}
-                    onChange={(e) =>
-                      setForm({ ...form, room_type: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, room_type: e.target.value })}
                     className="input-field"
                   >
-                    <option value="single">Single room</option>
-                    <option value="double">Double room (shared)</option>
+                    <option value="single">
+                      Single room{selected.single_rooms > 0 ? ` (${selected.single_rooms} available)` : " (unavailable)"}
+                    </option>
+                    <option value="double">
+                      Double room (shared){selected.double_rooms > 0 ? ` (${selected.double_rooms} available)` : selected.single_rooms === 0 && selected.double_rooms === 0 ? "" : " (unavailable)"}
+                    </option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-text-dark mb-1">
-                    Additional notes{" "}
-                    <span className="text-muted font-normal">(optional)</span>
+                    Additional notes <span className="text-muted font-normal">(optional)</span>
                   </label>
                   <textarea
                     value={form.message}
-                    onChange={(e) =>
-                      setForm({ ...form, message: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, message: e.target.value })}
                     rows={3}
                     className="input-field"
                     placeholder="Any special requirements, move-in date preferences, etc."
@@ -372,17 +374,12 @@ export default function Dormitory() {
 
                 {applyMutation.isError && (
                   <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-4 py-3">
-                    {(applyMutation.error as Error)?.message ||
-                      "Failed to submit"}
+                    {(applyMutation.error as Error)?.message || "Failed to submit"}
                   </div>
                 )}
 
                 <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelected(null)}
-                    className="btn-secondary flex-1"
-                  >
+                  <button type="button" onClick={() => setSelected(null)} className="btn-secondary flex-1">
                     Cancel
                   </button>
                   <button

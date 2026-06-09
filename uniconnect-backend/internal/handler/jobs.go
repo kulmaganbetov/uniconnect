@@ -87,6 +87,33 @@ func (h *JobHandler) AllApplications(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: apps})
 }
 
+func (h *JobHandler) UpdateApplicationStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid application id"})
+		return
+	}
+
+	var req model.UpdateApplicationStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "invalid request body"})
+		return
+	}
+
+	if req.Status != "pending" && req.Status != "approved" && req.Status != "rejected" {
+		writeJSON(w, http.StatusBadRequest, model.APIResponse{Success: false, Error: "status must be 'pending', 'approved', or 'rejected'"})
+		return
+	}
+
+	app, err := h.svc.UpdateApplicationStatus(r.Context(), id, req.Status)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, model.APIResponse{Success: false, Error: "application not found"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, model.APIResponse{Success: true, Data: app})
+}
+
 func (h *JobHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req model.JobUpsertRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
