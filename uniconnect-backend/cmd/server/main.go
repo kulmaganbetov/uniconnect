@@ -152,10 +152,12 @@ func main() {
 			r.Post("/avatar", profileH.UploadAvatar)
 		})
 
-		// Team task submissions (students)
+		// Team tasks (students)
 		r.Route("/team-tasks", func(r chi.Router) {
 			r.Use(jwtAuth)
+			r.Get("/", taskH.GetMyTeamTasks)
 			r.Post("/{id}/submit", taskH.SubmitTeamTask)
+			r.Get("/{id}/submissions", taskH.GetTeamTaskSubmissions)
 		})
 
 		// Teams & Gamification

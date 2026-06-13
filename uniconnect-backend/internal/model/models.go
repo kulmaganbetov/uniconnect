@@ -314,7 +314,7 @@ type UpdateUserRoleRequest struct {
 // AI consultant types
 
 type ChatMessage struct {
-	Role    string `json:"role"`    // "user" or "assistant"
+	Role    string `json:"role"` // "user" or "assistant"
 	Content string `json:"content"`
 }
 
@@ -442,6 +442,9 @@ type TeamTask struct {
 	Status         string    `json:"status"`
 	AssignedAt     time.Time `json:"assigned_at"`
 	CompletedAt    string    `json:"completed_at"` // empty or timestamp string
+	SubmittedAt    string    `json:"submitted_at"` // empty or timestamp string
+	ReviewedAt     string    `json:"reviewed_at"`  // empty or timestamp string
+	ReviewedBy     string    `json:"reviewed_by"`  // empty or reviewer user id
 	SubmissionText string    `json:"submission_text"`
 }
 
@@ -452,11 +455,23 @@ type TeamTaskDetail struct {
 	Status         string    `json:"status"`
 	AssignedAt     time.Time `json:"assigned_at"`
 	CompletedAt    string    `json:"completed_at"`
+	SubmittedAt    string    `json:"submitted_at"`
+	ReviewedAt     string    `json:"reviewed_at"`
 	Title          string    `json:"title"`
 	Description    string    `json:"description"`
 	XPReward       int       `json:"xp_reward"`
+	Deadline       string    `json:"deadline"`
 	TeamName       string    `json:"team_name,omitempty"`
 	SubmissionText string    `json:"submission_text"`
+}
+
+// TeamTaskSubmission is one historical submission attempt for a team task.
+type TeamTaskSubmission struct {
+	ID             uuid.UUID `json:"id"`
+	TeamTaskID     uuid.UUID `json:"team_task_id"`
+	UserID         uuid.UUID `json:"user_id"`
+	SubmissionText string    `json:"submission_text"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 
 type TeamActivityEntry struct {
@@ -482,7 +497,8 @@ type TaskUpsertRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	XPReward    int    `json:"xp_reward"`
-	Deadline    string `json:"deadline"` // optional, ISO8601
+	Deadline    string `json:"deadline"`         // optional, ISO8601 (RFC3339)
+	Status      string `json:"status,omitempty"` // optional on update: "active"/"inactive"
 }
 
 type AssignTaskRequest struct {

@@ -2,11 +2,19 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
 )
+
+// ErrStateConflict is returned when a status transition cannot be applied
+// because the row is not in the expected state (e.g. a concurrent update
+// already moved it, or the task was not in the required status). It lets the
+// service layer distinguish a lost race from a genuine internal error.
+var ErrStateConflict = errors.New("team task is not in the required state")
 
 // ─── TeamRepository ───────────────────────────────────────────────────────────
 
@@ -374,13 +382,16 @@ func (db *DB) UpdateTask(ctx context.Context, id uuid.UUID, t *model.Task) (*mod
 		deadlineParam = t.Deadline
 	}
 	out := &model.Task{}
+	// status is only changed when a non-empty value is provided.
 	err := db.Pool.QueryRow(ctx, `
-		UPDATE tasks SET title=$2, description=$3, xp_reward=$4, deadline=$5::TIMESTAMP
-		WHERE id=$1
+		UPDATE tasks
+		   SET title=$2, description=$3, xp_reward=$4, deadline=$5::TIMESTAMP,
+		       status=COALESCE(NULLIF($6,''), status)
+		 WHERE id=$1
 		RETURNING id, title, COALESCE(description,''), xp_reward,
 		          COALESCE(TO_CHAR(deadline, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
 		          status, created_by, created_at`,
-		id, t.Title, t.Description, t.XPReward, deadlineParam,
+		id, t.Title, t.Description, t.XPReward, deadlineParam, t.Status,
 	).Scan(&out.ID, &out.Title, &out.Description, &out.XPReward, &out.Deadline, &out.Status, &out.CreatedBy, &out.CreatedAt)
 	if err != nil {
 		return nil, err
@@ -414,58 +425,198 @@ func (db *DB) GetTeamTaskByID(ctx context.Context, teamTaskID uuid.UUID) (*model
 	err := db.Pool.QueryRow(ctx, `
 		SELECT id, team_id, task_id, status, assigned_at,
 		       COALESCE(TO_CHAR(completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(TO_CHAR(submitted_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(TO_CHAR(reviewed_at,  'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(reviewed_by::text, ''),
 		       COALESCE(submission_text,'')
 		FROM team_tasks WHERE id=$1`, teamTaskID,
-	).Scan(&tt.ID, &tt.TeamID, &tt.TaskID, &tt.Status, &tt.AssignedAt, &tt.CompletedAt, &tt.SubmissionText)
+	).Scan(&tt.ID, &tt.TeamID, &tt.TaskID, &tt.Status, &tt.AssignedAt,
+		&tt.CompletedAt, &tt.SubmittedAt, &tt.ReviewedAt, &tt.ReviewedBy, &tt.SubmissionText)
 	if err != nil {
 		return nil, err
 	}
 	return tt, nil
 }
 
-func (db *DB) SubmitTeamTask(ctx context.Context, teamTaskID uuid.UUID, submissionText string) error {
-	_, err := db.Pool.Exec(ctx,
-		`UPDATE team_tasks SET status='submitted', submission_text=$2 WHERE id=$1`,
-		teamTaskID, submissionText,
-	)
-	return err
-}
-
-func (db *DB) RejectTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
-	_, err := db.Pool.Exec(ctx,
-		`UPDATE team_tasks SET status='assigned', submission_text=NULL WHERE id=$1`,
-		teamTaskID,
-	)
-	return err
-}
-
-func (db *DB) CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
-	// Mark task complete and award XP atomically.
-	_, err := db.Pool.Exec(ctx, `
-		UPDATE team_tasks SET status='completed', completed_at=NOW()
-		WHERE id=$1`, teamTaskID)
+// SubmitTeamTask records a submission. The transition is guarded so only a task
+// in 'assigned' status can be submitted; it also appends to the submission
+// history and logs a team activity entry — all atomically. Returns
+// ErrStateConflict if the task was not in 'assigned' status.
+func (db *DB) SubmitTeamTask(ctx context.Context, teamTaskID, userID uuid.UUID, submissionText string) error {
+	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback(ctx)
 
-	// Add XP to the team (join through team_tasks → tasks).
-	_, err = db.Pool.Exec(ctx, `
-		UPDATE teams SET total_xp = total_xp + (
-			SELECT ta.xp_reward FROM tasks ta
-			JOIN team_tasks tt ON tt.task_id = ta.id
-			WHERE tt.id = $1
-		)
-		WHERE id = (SELECT team_id FROM team_tasks WHERE id=$1)`,
-		teamTaskID,
+	ct, err := tx.Exec(ctx,
+		`UPDATE team_tasks
+		    SET status='submitted', submission_text=$2, submitted_at=NOW()
+		  WHERE id=$1 AND status='assigned'`,
+		teamTaskID, submissionText,
+	)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrStateConflict
+	}
+
+	var userIDParam interface{}
+	if userID != (uuid.UUID{}) {
+		userIDParam = userID
+	}
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO team_task_submissions (id, team_task_id, user_id, submission_text, created_at)
+		 VALUES ($1, $2, $3, $4, NOW())`,
+		uuid.New(), teamTaskID, userIDParam, submissionText,
+	); err != nil {
+		return err
+	}
+
+	if err := logActivityTx(ctx, tx, teamTaskID, userIDParam, "task_submitted", "Submitted a task for review", 0); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// RejectTeamTask returns a submitted task to 'assigned' status, clears the
+// latest submission text, records the reviewer, and logs an activity entry.
+// Returns ErrStateConflict if the task was not in 'submitted' status.
+func (db *DB) RejectTeamTask(ctx context.Context, teamTaskID, reviewerID uuid.UUID) error {
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var reviewerParam interface{}
+	if reviewerID != (uuid.UUID{}) {
+		reviewerParam = reviewerID
+	}
+	ct, err := tx.Exec(ctx,
+		`UPDATE team_tasks
+		    SET status='assigned', submission_text=NULL, reviewed_at=NOW(), reviewed_by=$2
+		  WHERE id=$1 AND status='submitted'`,
+		teamTaskID, reviewerParam,
+	)
+	if err != nil {
+		return err
+	}
+	if ct.RowsAffected() == 0 {
+		return ErrStateConflict
+	}
+
+	if err := logActivityTx(ctx, tx, teamTaskID, nil, "task_rejected", "Task submission was rejected", 0); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// CompleteTeamTask approves a submitted task, awards XP to the team, records the
+// reviewer, and logs the activity — all in a single transaction. The status
+// transition is guarded (WHERE status='submitted') so concurrent approvals can
+// never double-award XP. Returns the XP awarded, or ErrStateConflict if the
+// task was not in 'submitted' status.
+func (db *DB) CompleteTeamTask(ctx context.Context, teamTaskID, reviewerID uuid.UUID) (int, error) {
+	tx, err := db.Pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	var reviewerParam interface{}
+	if reviewerID != (uuid.UUID{}) {
+		reviewerParam = reviewerID
+	}
+	ct, err := tx.Exec(ctx, `
+		UPDATE team_tasks
+		   SET status='completed', completed_at=NOW(), reviewed_at=NOW(), reviewed_by=$2
+		 WHERE id=$1 AND status='submitted'`,
+		teamTaskID, reviewerParam,
+	)
+	if err != nil {
+		return 0, err
+	}
+	if ct.RowsAffected() == 0 {
+		return 0, ErrStateConflict
+	}
+
+	// Resolve the team and the task's reward/title in one shot.
+	var teamID uuid.UUID
+	var xpReward int
+	var title string
+	if err := tx.QueryRow(ctx, `
+		SELECT tt.team_id, ta.xp_reward, ta.title
+		  FROM team_tasks tt
+		  JOIN tasks ta ON ta.id = tt.task_id
+		 WHERE tt.id = $1`, teamTaskID,
+	).Scan(&teamID, &xpReward, &title); err != nil {
+		return 0, err
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE teams SET total_xp = total_xp + $2 WHERE id=$1`, teamID, xpReward,
+	); err != nil {
+		return 0, err
+	}
+
+	if err := logActivityTx(ctx, tx, teamTaskID, nil, "task_completed", "Completed task: "+title, xpReward); err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return xpReward, nil
+}
+
+// logActivityTx inserts a team_activity row inside an existing transaction,
+// resolving the team_id from the given team task.
+func logActivityTx(ctx context.Context, tx pgx.Tx, teamTaskID uuid.UUID, userIDParam interface{}, action, description string, xp int) error {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO team_activity (id, team_id, user_id, action, description, xp_gained, created_at)
+		SELECT $1, tt.team_id, $2, $3, $4, $5, NOW()
+		  FROM team_tasks tt WHERE tt.id = $6`,
+		uuid.New(), userIDParam, action, description, xp, teamTaskID,
 	)
 	return err
+}
+
+// GetTeamTaskSubmissions returns the full submission history for a team task,
+// newest first.
+func (db *DB) GetTeamTaskSubmissions(ctx context.Context, teamTaskID uuid.UUID) ([]model.TeamTaskSubmission, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT id, team_task_id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'::uuid),
+		       submission_text, created_at
+		  FROM team_task_submissions
+		 WHERE team_task_id=$1
+		 ORDER BY created_at DESC`, teamTaskID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	subs := []model.TeamTaskSubmission{}
+	for rows.Next() {
+		var s model.TeamTaskSubmission
+		if err := rows.Scan(&s.ID, &s.TeamTaskID, &s.UserID, &s.SubmissionText, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		subs = append(subs, s)
+	}
+	return subs, nil
 }
 
 func (db *DB) GetTeamTasks(ctx context.Context, teamID uuid.UUID) ([]model.TeamTaskDetail, error) {
 	query := `
 		SELECT tt.id, tt.team_id, tt.task_id, tt.status, tt.assigned_at,
 		       COALESCE(TO_CHAR(tt.completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(TO_CHAR(tt.submitted_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(TO_CHAR(tt.reviewed_at,  'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
 		       COALESCE(ta.title,''), COALESCE(ta.description,''), COALESCE(ta.xp_reward,0),
+		       COALESCE(TO_CHAR(ta.deadline, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
 		       COALESCE(tt.submission_text,'')
 		FROM team_tasks tt
 		JOIN tasks ta ON ta.id = tt.task_id
@@ -482,7 +633,8 @@ func (db *DB) GetTeamTasks(ctx context.Context, teamID uuid.UUID) ([]model.TeamT
 		var d model.TeamTaskDetail
 		if err := rows.Scan(
 			&d.ID, &d.TeamID, &d.TaskID, &d.Status, &d.AssignedAt, &d.CompletedAt,
-			&d.Title, &d.Description, &d.XPReward, &d.SubmissionText,
+			&d.SubmittedAt, &d.ReviewedAt,
+			&d.Title, &d.Description, &d.XPReward, &d.Deadline, &d.SubmissionText,
 		); err != nil {
 			return nil, err
 		}
@@ -498,7 +650,10 @@ func (db *DB) GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, erro
 	query := `
 		SELECT tt.id, tt.team_id, tt.task_id, tt.status, tt.assigned_at,
 		       COALESCE(TO_CHAR(tt.completed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(TO_CHAR(tt.submitted_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
+		       COALESCE(TO_CHAR(tt.reviewed_at,  'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
 		       COALESCE(ta.title,''), COALESCE(ta.description,''), COALESCE(ta.xp_reward,0),
+		       COALESCE(TO_CHAR(ta.deadline, 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), ''),
 		       COALESCE(t.name,''), COALESCE(tt.submission_text,'')
 		FROM team_tasks tt
 		JOIN tasks ta ON ta.id = tt.task_id
@@ -515,7 +670,8 @@ func (db *DB) GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, erro
 		var d model.TeamTaskDetail
 		if err := rows.Scan(
 			&d.ID, &d.TeamID, &d.TaskID, &d.Status, &d.AssignedAt, &d.CompletedAt,
-			&d.Title, &d.Description, &d.XPReward, &d.TeamName, &d.SubmissionText,
+			&d.SubmittedAt, &d.ReviewedAt,
+			&d.Title, &d.Description, &d.XPReward, &d.Deadline, &d.TeamName, &d.SubmissionText,
 		); err != nil {
 			return nil, err
 		}
