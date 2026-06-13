@@ -3,12 +3,29 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/model"
 	"github.com/kulmaganbetov/uniconnect/uniconnect-backend/internal/repository"
 )
+
+// defaultTaskXP is awarded when an admin creates a task without specifying a
+// positive XP reward.
+const defaultTaskXP = 10
+
+// parseDeadline validates an optional RFC3339 deadline string. An empty string
+// means "no deadline" and is allowed.
+func parseDeadline(s string) (string, error) {
+	if s == "" {
+		return "", nil
+	}
+	if _, err := time.Parse(time.RFC3339, s); err != nil {
+		return "", errors.New("deadline must be a valid RFC3339 timestamp, e.g. 2026-01-02T15:04:05Z")
+	}
+	return s, nil
+}
 
 // ─── TeamService ──────────────────────────────────────────────────────────────
 
@@ -204,16 +221,20 @@ func (s *TaskService) GetAll(ctx context.Context) ([]model.Task, error) {
 }
 
 func (s *TaskService) Create(ctx context.Context, adminID uuid.UUID, req model.TaskUpsertRequest) (*model.Task, error) {
+	deadline, err := parseDeadline(req.Deadline)
+	if err != nil {
+		return nil, err
+	}
 	xp := req.XPReward
 	if xp <= 0 {
-		xp = 10
+		xp = defaultTaskXP
 	}
 	t := &model.Task{
 		ID:          uuid.New(),
 		Title:       req.Title,
 		Description: req.Description,
 		XPReward:    xp,
-		Deadline:    req.Deadline,
+		Deadline:    deadline,
 		Status:      "active",
 		CreatedBy:   adminID,
 	}
@@ -224,11 +245,23 @@ func (s *TaskService) Create(ctx context.Context, adminID uuid.UUID, req model.T
 }
 
 func (s *TaskService) Update(ctx context.Context, id uuid.UUID, req model.TaskUpsertRequest) (*model.Task, error) {
+	deadline, err := parseDeadline(req.Deadline)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != "" && req.Status != "active" && req.Status != "inactive" {
+		return nil, errors.New("status must be 'active' or 'inactive'")
+	}
+	xp := req.XPReward
+	if xp <= 0 {
+		xp = defaultTaskXP
+	}
 	t := &model.Task{
 		Title:       req.Title,
 		Description: req.Description,
-		XPReward:    req.XPReward,
-		Deadline:    req.Deadline,
+		XPReward:    xp,
+		Deadline:    deadline,
+		Status:      req.Status, // empty keeps the existing status
 	}
 	updated, err := s.tasks.UpdateTask(ctx, id, t)
 	if err != nil {
@@ -247,7 +280,22 @@ func (s *TaskService) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// AssignToTeam assigns an existing task to an existing team. Both are validated
+// so a missing task or team surfaces as a 404 rather than an opaque 500.
 func (s *TaskService) AssignToTeam(ctx context.Context, taskID, teamID uuid.UUID) (*model.TeamTask, error) {
+	if _, err := s.tasks.GetTaskByID(ctx, taskID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, ErrInternal
+	}
+	if _, err := s.teams.GetTeamByID(ctx, teamID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, ErrInternal
+	}
+
 	tt, err := s.tasks.AssignTaskToTeam(ctx, teamID, taskID)
 	if err != nil {
 		return nil, ErrInternal
@@ -284,11 +332,26 @@ func (s *TaskService) SubmitTeamTask(ctx context.Context, userID, teamTaskID uui
 		return errors.New("task already submitted, awaiting admin review")
 	}
 
-	return s.tasks.SubmitTeamTask(ctx, teamTaskID, submissionText)
+	// Enforce the task deadline, if one is set.
+	if task, err := s.tasks.GetTaskByID(ctx, tt.TaskID); err == nil && task.Deadline != "" {
+		if dl, perr := time.Parse(time.RFC3339, task.Deadline); perr == nil && time.Now().After(dl) {
+			return errors.New("the deadline for this task has passed")
+		}
+	}
+
+	if err := s.tasks.SubmitTeamTask(ctx, teamTaskID, userID, submissionText); err != nil {
+		if errors.Is(err, repository.ErrStateConflict) {
+			return errors.New("task can no longer be submitted in its current state")
+		}
+		return ErrInternal
+	}
+	return nil
 }
 
-// CompleteTeamTask approves a submitted task and awards XP (admin only).
-func (s *TaskService) CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
+// CompleteTeamTask approves a submitted task and awards XP (admin only). The XP
+// award, status change, and activity log are applied atomically in the
+// repository, so concurrent approvals can never double-award XP.
+func (s *TaskService) CompleteTeamTask(ctx context.Context, reviewerID, teamTaskID uuid.UUID) error {
 	tt, err := s.tasks.GetTeamTaskByID(ctx, teamTaskID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -304,28 +367,17 @@ func (s *TaskService) CompleteTeamTask(ctx context.Context, teamTaskID uuid.UUID
 		return errors.New("task must be submitted by the team before it can be approved")
 	}
 
-	if err := s.tasks.CompleteTeamTask(ctx, teamTaskID); err != nil {
+	if _, err := s.tasks.CompleteTeamTask(ctx, teamTaskID, reviewerID); err != nil {
+		if errors.Is(err, repository.ErrStateConflict) {
+			return errors.New("task is already completed or no longer awaiting review")
+		}
 		return ErrInternal
 	}
-
-	task, err := s.tasks.GetTaskByID(ctx, tt.TaskID)
-	if err != nil {
-		return nil // activity log is best-effort
-	}
-
-	entry := &model.TeamActivityEntry{
-		ID:          uuid.New(),
-		TeamID:      tt.TeamID,
-		Action:      "task_completed",
-		Description: "Completed task: " + task.Title,
-		XPGained:    task.XPReward,
-	}
-	_ = s.tasks.LogTeamActivity(ctx, entry)
 	return nil
 }
 
 // RejectTeamTask returns a submitted task to assigned status (admin only).
-func (s *TaskService) RejectTeamTask(ctx context.Context, teamTaskID uuid.UUID) error {
+func (s *TaskService) RejectTeamTask(ctx context.Context, reviewerID, teamTaskID uuid.UUID) error {
 	tt, err := s.tasks.GetTeamTaskByID(ctx, teamTaskID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -336,7 +388,61 @@ func (s *TaskService) RejectTeamTask(ctx context.Context, teamTaskID uuid.UUID) 
 	if tt.Status != "submitted" {
 		return errors.New("can only reject tasks that have been submitted")
 	}
-	return s.tasks.RejectTeamTask(ctx, teamTaskID)
+	if err := s.tasks.RejectTeamTask(ctx, teamTaskID, reviewerID); err != nil {
+		if errors.Is(err, repository.ErrStateConflict) {
+			return errors.New("task is no longer awaiting review")
+		}
+		return ErrInternal
+	}
+	return nil
+}
+
+// GetMyTeamTasks returns every task assigned to the team the caller belongs to.
+func (s *TaskService) GetMyTeamTasks(ctx context.Context, userID uuid.UUID) ([]model.TeamTaskDetail, error) {
+	memberTeam, err := s.teams.GetMemberTeam(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, ErrInternal
+	}
+	details, err := s.tasks.GetTeamTasks(ctx, memberTeam.ID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+	return details, nil
+}
+
+// GetTeamTaskSubmissions returns the submission history for a team task. A
+// non-admin caller must be a member of the owning team. isAdmin bypasses the
+// membership check.
+func (s *TaskService) GetTeamTaskSubmissions(ctx context.Context, userID, teamTaskID uuid.UUID, isAdmin bool) ([]model.TeamTaskSubmission, error) {
+	tt, err := s.tasks.GetTeamTaskByID(ctx, teamTaskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, ErrInternal
+	}
+
+	if !isAdmin {
+		memberTeam, err := s.teams.GetMemberTeam(ctx, userID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, errors.New("you are not a member of any team")
+			}
+			return nil, ErrInternal
+		}
+		if memberTeam.ID != tt.TeamID {
+			return nil, errors.New("you are not a member of this team's task")
+		}
+	}
+
+	subs, err := s.tasks.GetTeamTaskSubmissions(ctx, teamTaskID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+	return subs, nil
 }
 
 func (s *TaskService) GetAllTeamTasks(ctx context.Context) ([]model.TeamTaskDetail, error) {
