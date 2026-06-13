@@ -21,9 +21,6 @@ interface TeamSummary {
   created_at: string;
 }
 
-const LANGUAGES = ["English", "German", "French", "Spanish", "Chinese", "Japanese", "Korean", "Kazakh", "Russian"];
-const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2", "Native"];
-
 function TeamAvatar({ name, avatarUrl, size = "md" }: { name: string; avatarUrl?: string; size?: "sm" | "md" | "lg" }) {
   const sizeClass = size === "lg" ? "w-16 h-16 text-2xl" : size === "sm" ? "w-8 h-8 text-sm" : "w-12 h-12 text-lg";
   if (avatarUrl) {
@@ -48,15 +45,15 @@ function TeamAvatar({ name, avatarUrl, size = "md" }: { name: string; avatarUrl?
 function TeamCard({
   team,
   myTeamId,
-  canJoin,
+  canJoin = false,
   onJoin,
-  joining,
+  joining = false,
 }: {
   team: TeamSummary;
   myTeamId?: string | null;
-  canJoin: boolean;
-  onJoin: (id: string) => void;
-  joining: boolean;
+  canJoin?: boolean;
+  onJoin?: (id: string) => void;
+  joining?: boolean;
 }) {
   const navigate = useNavigate();
   const isMyTeam = myTeamId === team.id;
@@ -105,7 +102,7 @@ function TeamCard({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onJoin(team.id);
+                onJoin?.(team.id);
               }}
               disabled={joining}
               className="btn-primary text-xs py-1.5 px-3 disabled:opacity-60"
@@ -114,6 +111,80 @@ function TeamCard({
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Basic UUID v4-ish shape check so we can give instant feedback before hitting the API.
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function JoinByIdModal({
+  onClose,
+  onJoin,
+  joining,
+}: {
+  onClose: () => void;
+  onJoin: (id: string) => void;
+  joining: boolean;
+}) {
+  const [teamId, setTeamId] = useState("");
+  const trimmed = teamId.trim();
+  const valid = UUID_RE.test(trimmed);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg max-w-lg w-full shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-gray-100 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-navy">Join a Team by ID</h3>
+          <button onClick={onClose} className="text-muted hover:text-text-dark text-2xl leading-none" aria-label="Close">
+            &times;
+          </button>
+        </div>
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (valid) onJoin(trimmed);
+          }}
+          className="px-6 py-5 space-y-4"
+        >
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded px-4 py-3 text-sm">
+            Ask a teammate for their <strong>Team ID</strong> (shown on their team page) and paste it
+            below. Your language and level must match the team, and the team must have an open slot.
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-dark mb-1">
+              Team ID <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={teamId}
+              onChange={(e) => setTeamId(e.target.value)}
+              className="input-field font-mono text-sm"
+              placeholder="e.g. 3f8c1e2a-1b2c-4d5e-8f90-0a1b2c3d4e5f"
+            />
+            {trimmed.length > 0 && !valid && (
+              <p className="text-xs text-red-500 mt-1">That doesn't look like a valid Team ID.</p>
+            )}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button
+              type="submit"
+              disabled={!valid || joining}
+              className="btn-primary flex-1 disabled:opacity-60"
+            >
+              {joining ? "Joining..." : "Join Team"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -209,15 +280,8 @@ export default function Teams() {
   const { isAuthenticated, user } = useAuthStore();
 
   const [activeTab, setActiveTab] = useState<"all" | "leaderboard">("all");
-  const [langFilter, setLangFilter] = useState("All");
-  const [levelFilter, setLevelFilter] = useState("All");
   const [showCreate, setShowCreate] = useState(false);
-  const [joiningId, setJoiningId] = useState<string | null>(null);
-
-  const teamsQuery = useQuery({
-    queryKey: ["teams"],
-    queryFn: () => apiGet<TeamSummary[]>("/api/teams"),
-  });
+  const [showJoinById, setShowJoinById] = useState(false);
 
   const leaderboardQuery = useQuery({
     queryKey: ["teams", "leaderboard"],
@@ -243,50 +307,24 @@ export default function Teams() {
     onError: (e: Error) => toast.error(e.message || "Failed to create team"),
   });
 
-  const joinMutation = useMutation({
+  // Joining by a pasted Team ID navigates straight to the team on success.
+  const joinByIdMutation = useMutation({
     mutationFn: (id: string) => apiPost<TeamSummary>(`/api/teams/${id}/join`, {}),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       toast.success("Joined team successfully!");
       queryClient.invalidateQueries({ queryKey: ["teams"] });
       queryClient.invalidateQueries({ queryKey: ["teams", "my"] });
-      setJoiningId(null);
+      setShowJoinById(false);
+      navigate(`/teams/${id}`);
     },
-    onError: (e: Error) => {
-      toast.error(e.message || "Failed to join team");
-      setJoiningId(null);
-    },
+    onError: (e: Error) => toast.error(e.message || "Failed to join team"),
   });
-
-  const handleJoin = (id: string) => {
-    setJoiningId(id);
-    joinMutation.mutate(id);
-  };
 
   const myTeam = myTeamQuery.data ?? null;
   const hasLanguage = !!(user?.language && user?.language_level);
   const canCreateTeam = isAuthenticated && hasLanguage && !myTeam;
 
-  const allTeams = teamsQuery.data || [];
-  const filteredTeams = allTeams.filter((t) => {
-    if (langFilter !== "All" && t.language !== langFilter) return false;
-    if (levelFilter !== "All" && t.language_level !== levelFilter) return false;
-    return true;
-  });
-
-  // Show "Your Team" highlighted at top
-  const myTeamInList = myTeam ? filteredTeams.find((t) => t.id === myTeam.id) : null;
-  const otherTeams = myTeamInList ? filteredTeams.filter((t) => t.id !== myTeam!.id) : filteredTeams;
-
   const leaderboard = leaderboardQuery.data || [];
-
-  const canJoinTeam = (team: TeamSummary) => {
-    if (!isAuthenticated || !hasLanguage) return false;
-    if (myTeam) return false;
-    if (team.member_count >= 4) return false;
-    if (user?.language !== team.language) return false;
-    if (user?.language_level !== team.language_level) return false;
-    return true;
-  };
 
   const rankStyle = (rank: number) => {
     if (rank === 1) return "text-yellow-500 font-extrabold text-xl";
@@ -321,7 +359,7 @@ export default function Teams() {
                 onClick={() => setActiveTab("all")}
                 className={`tab-button ${activeTab === "all" ? "tab-button-active" : "tab-button-inactive"}`}
               >
-                All Teams
+                My Team
               </button>
               <button
                 onClick={() => setActiveTab("leaderboard")}
@@ -333,69 +371,53 @@ export default function Teams() {
 
             {activeTab === "all" && (
               <>
-                {/* Filters + Create */}
+                {/* Actions */}
                 <div className="flex flex-wrap items-center gap-3 mb-6">
-                  <select
-                    value={langFilter}
-                    onChange={(e) => setLangFilter(e.target.value)}
-                    className="input-field w-auto"
-                  >
-                    <option value="All">All Languages</option>
-                    {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                  <select
-                    value={levelFilter}
-                    onChange={(e) => setLevelFilter(e.target.value)}
-                    className="input-field w-auto"
-                  >
-                    <option value="All">All Levels</option>
-                    {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
                   <div className="flex-1" />
                   {canCreateTeam && (
-                    <button onClick={() => setShowCreate(true)} className="btn-primary">
-                      + Create Team
-                    </button>
+                    <>
+                      <button onClick={() => setShowJoinById(true)} className="btn-secondary">
+                        Join by ID
+                      </button>
+                      <button onClick={() => setShowCreate(true)} className="btn-primary">
+                        + Create Team
+                      </button>
+                    </>
                   )}
                 </div>
 
-                {teamsQuery.isLoading ? (
-                  <LoadingSpinner label="Loading teams..." />
-                ) : teamsQuery.isError ? (
-                  <div className="bg-red-50 border border-red-200 text-red-700 rounded px-4 py-3">
-                    {(teamsQuery.error as Error)?.message || "Failed to load teams"}
+                {!isAuthenticated ? (
+                  <div className="text-center text-muted py-12 bg-white rounded-md border border-dashed border-gray-200">
+                    Please log in to view or join a team.
+                  </div>
+                ) : myTeamQuery.isLoading ? (
+                  <LoadingSpinner label="Loading your team..." />
+                ) : myTeam ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <TeamCard team={myTeam} myTeamId={myTeam.id} />
                   </div>
                 ) : (
-                  <>
-                    {filteredTeams.length === 0 ? (
-                      <div className="text-center text-muted py-12 bg-white rounded-md border border-dashed border-gray-200">
-                        No teams found matching your filters.
+                  <div className="text-center py-12 bg-white rounded-md border border-dashed border-gray-200 px-6">
+                    <p className="text-navy font-semibold mb-1">You're not in a team yet</p>
+                    <p className="text-muted text-sm mb-4 max-w-md mx-auto">
+                      Teams are private — you can't browse them. Create your own team, or join an
+                      existing one with a <strong>Team ID</strong> shared by a teammate.
+                    </p>
+                    {canCreateTeam ? (
+                      <div className="flex items-center justify-center gap-3">
+                        <button onClick={() => setShowJoinById(true)} className="btn-secondary">
+                          Join by ID
+                        </button>
+                        <button onClick={() => setShowCreate(true)} className="btn-primary">
+                          + Create Team
+                        </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {myTeamInList && (
-                          <TeamCard
-                            key={myTeamInList.id}
-                            team={myTeamInList}
-                            myTeamId={myTeam?.id}
-                            canJoin={false}
-                            onJoin={handleJoin}
-                            joining={joiningId === myTeamInList.id && joinMutation.isPending}
-                          />
-                        )}
-                        {otherTeams.map((team) => (
-                          <TeamCard
-                            key={team.id}
-                            team={team}
-                            myTeamId={myTeam?.id}
-                            canJoin={canJoinTeam(team)}
-                            onJoin={handleJoin}
-                            joining={joiningId === team.id && joinMutation.isPending}
-                          />
-                        ))}
-                      </div>
+                      <p className="text-xs text-muted">
+                        Set your language and level in your profile to create or join a team.
+                      </p>
                     )}
-                  </>
+                  </div>
                 )}
               </>
             )}
@@ -467,6 +489,14 @@ export default function Teams() {
           onClose={() => setShowCreate(false)}
           onSave={(form) => createMutation.mutate(form)}
           saving={createMutation.isPending}
+        />
+      )}
+
+      {showJoinById && (
+        <JoinByIdModal
+          onClose={() => setShowJoinById(false)}
+          onJoin={(id) => joinByIdMutation.mutate(id)}
+          joining={joinByIdMutation.isPending}
         />
       )}
     </div>
