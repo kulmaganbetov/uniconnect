@@ -119,6 +119,80 @@ function TeamCard({
   );
 }
 
+// Basic UUID v4-ish shape check so we can give instant feedback before hitting the API.
+const UUID_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function JoinByIdModal({
+  onClose,
+  onJoin,
+  joining,
+}: {
+  onClose: () => void;
+  onJoin: (id: string) => void;
+  joining: boolean;
+}) {
+  const [teamId, setTeamId] = useState("");
+  const trimmed = teamId.trim();
+  const valid = UUID_RE.test(trimmed);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-lg max-w-lg w-full shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-gray-100 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-navy">Join a Team by ID</h3>
+          <button onClick={onClose} className="text-muted hover:text-text-dark text-2xl leading-none" aria-label="Close">
+            &times;
+          </button>
+        </div>
+        <form
+          onSubmit={(e: FormEvent) => {
+            e.preventDefault();
+            if (valid) onJoin(trimmed);
+          }}
+          className="px-6 py-5 space-y-4"
+        >
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded px-4 py-3 text-sm">
+            Ask a teammate for their <strong>Team ID</strong> (shown on their team page) and paste it
+            below. Your language and level must match the team, and the team must have an open slot.
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-dark mb-1">
+              Team ID <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={teamId}
+              onChange={(e) => setTeamId(e.target.value)}
+              className="input-field font-mono text-sm"
+              placeholder="e.g. 3f8c1e2a-1b2c-4d5e-8f90-0a1b2c3d4e5f"
+            />
+            {trimmed.length > 0 && !valid && (
+              <p className="text-xs text-red-500 mt-1">That doesn't look like a valid Team ID.</p>
+            )}
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button
+              type="submit"
+              disabled={!valid || joining}
+              className="btn-primary flex-1 disabled:opacity-60"
+            >
+              {joining ? "Joining..." : "Join Team"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function CreateTeamModal({
   language,
   level,
@@ -212,6 +286,7 @@ export default function Teams() {
   const [langFilter, setLangFilter] = useState("All");
   const [levelFilter, setLevelFilter] = useState("All");
   const [showCreate, setShowCreate] = useState(false);
+  const [showJoinById, setShowJoinById] = useState(false);
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   const teamsQuery = useQuery({
@@ -261,6 +336,19 @@ export default function Teams() {
     setJoiningId(id);
     joinMutation.mutate(id);
   };
+
+  // Joining by a pasted Team ID navigates straight to the team on success.
+  const joinByIdMutation = useMutation({
+    mutationFn: (id: string) => apiPost<TeamSummary>(`/api/teams/${id}/join`, {}),
+    onSuccess: (_data, id) => {
+      toast.success("Joined team successfully!");
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+      queryClient.invalidateQueries({ queryKey: ["teams", "my"] });
+      setShowJoinById(false);
+      navigate(`/teams/${id}`);
+    },
+    onError: (e: Error) => toast.error(e.message || "Failed to join team"),
+  });
 
   const myTeam = myTeamQuery.data ?? null;
   const hasLanguage = !!(user?.language && user?.language_level);
@@ -353,9 +441,14 @@ export default function Teams() {
                   </select>
                   <div className="flex-1" />
                   {canCreateTeam && (
-                    <button onClick={() => setShowCreate(true)} className="btn-primary">
-                      + Create Team
-                    </button>
+                    <>
+                      <button onClick={() => setShowJoinById(true)} className="btn-secondary">
+                        Join by ID
+                      </button>
+                      <button onClick={() => setShowCreate(true)} className="btn-primary">
+                        + Create Team
+                      </button>
+                    </>
                   )}
                 </div>
 
@@ -467,6 +560,14 @@ export default function Teams() {
           onClose={() => setShowCreate(false)}
           onSave={(form) => createMutation.mutate(form)}
           saving={createMutation.isPending}
+        />
+      )}
+
+      {showJoinById && (
+        <JoinByIdModal
+          onClose={() => setShowJoinById(false)}
+          onJoin={(id) => joinByIdMutation.mutate(id)}
+          joining={joinByIdMutation.isPending}
         />
       )}
     </div>

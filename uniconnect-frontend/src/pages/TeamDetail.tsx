@@ -215,6 +215,10 @@ export default function TeamDetail() {
   const completedTasks = (team.tasks || []).filter(
     (t) => t.status === "completed"
   );
+  // Tasks the current member can act on right now (assigned, not yet submitted).
+  const submittableCount = isMyTeam
+    ? (team.tasks || []).filter((t) => t.status === "assigned").length
+    : 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-light">
@@ -319,6 +323,10 @@ export default function TeamDetail() {
               <div className="mt-4 text-xs text-muted">
                 Created {formatDate(team.created_at)}
               </div>
+
+              {isMyTeam && (
+                <InviteBox teamId={team.id} isFull={team.member_count >= 4} />
+              )}
             </div>
 
             {/* Section tabs */}
@@ -342,6 +350,11 @@ export default function TeamDetail() {
                 }`}
               >
                 🎯 Tasks ({team.tasks?.length || 0})
+                {submittableCount > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center bg-primary text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                    {submittableCount} to submit
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => setSection("activity")}
@@ -569,6 +582,53 @@ function MemberAvatar({
       className={`w-10 h-10 ${bgColor} rounded-full flex items-center justify-center text-white font-bold flex-shrink-0 text-sm`}
     >
       {name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+// InviteBox lets a team member copy their Team ID so classmates can join via
+// Teams → "Join by ID". It is hidden once the team is full (4/4).
+function InviteBox({ teamId, isFull }: { teamId: string; isFull: boolean }) {
+  const toast = useToast();
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(teamId);
+      toast.success("Team ID copied to clipboard");
+    } catch {
+      toast.error("Could not copy — please copy the ID manually");
+    }
+  };
+
+  if (isFull) {
+    return (
+      <div className="mt-4 p-3 bg-bg-light border border-gray-200 rounded text-xs text-muted">
+        This team is full (4/4 members).
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+      <p className="text-xs font-semibold text-blue-800 mb-1.5">
+        Invite teammates
+      </p>
+      <p className="text-xs text-blue-700 mb-2">
+        Share this Team ID. Classmates with the same language &amp; level can join from
+        <span className="font-semibold"> Teams → Join by ID</span>.
+      </p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 min-w-0 truncate bg-white border border-blue-200 rounded px-2.5 py-1.5 text-xs text-text-dark">
+          {teamId}
+        </code>
+        <button
+          type="button"
+          onClick={copy}
+          className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0"
+        >
+          Copy
+        </button>
+      </div>
     </div>
   );
 }
